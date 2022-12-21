@@ -1,0 +1,22 @@
+# depslib dependency file v1.0
+1671315444 source:z:\cdbalib\src\cdbalib.c
+	"cdbalib.h"
+	<stdlib.h>
+	<stdio.h>
+	<string.h>
+	<mariadb/mysql.h>
+	<mysql.h>
+	<sqlite3.h>
+	<odbcinst.h>
+	<windows.h>
+	<unistd.h>
+
+1671653403 z:\cdbalib\include\cdbalib.h
+	<stdint.h>
+	<stdarg.h>
+
+1671654047 source:z:\cdbalib\src\cdbalib_test.c
+	"cdbalib.h"
+	<stdlib.h>
+	<stdio.h>
+

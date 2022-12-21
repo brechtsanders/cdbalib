@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_workspace_file>
+	<Workspace title="cdbalib">
+		<Project filename="cdbalib_test_sqlite3.cbp" />
+		<Project filename="cdbalib_test_mysql.cbp" />
+		<Project filename="cdbalib_test_odbc.cbp" />
+	</Workspace>
+</CodeBlocks_workspace_file>
