@@ -62,10 +62,10 @@ OSALIAS := win32
 endif
 endif
 
-SQLITE3_CFLAGS = $(shell $(PKGCONFIG) --cflags sqlite3)
+SQLITE3_CFLAGS = -DDB_SQLITE3 $(shell $(PKGCONFIG) --cflags sqlite3)
 SQLITE3_LIBS = $(shell $(PKGCONFIG) --libs sqlite3)
-MYSQL_CFLAGS = $(shell $(MYSQLCONFIG) --cflags)
-MYSQL_LIBS = $(shell $(MYSQLCONFIG) --libs)
+MYSQL_CFLAGS = -DDB_MYSQL $(shell $(MYSQLCONFIG) --cflags)
+MYSQL_LIBS = -DDB_ODBC $(shell $(MYSQLCONFIG) --libs)
 ifeq ($(OS),Windows_NT)
 ODBC_CFLAGS = 
 ODBC_LIBS = -lodbc32
