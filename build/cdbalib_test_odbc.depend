@@ -20,3 +20,24 @@
 	<stdlib.h>
 	<stdio.h>
 
+1671737428 source:\\server\users\brecht\sources\cpp\cdbalib\src\cdbalib.c
+	"cdbalib.h"
+	<stdlib.h>
+	<stdio.h>
+	<string.h>
+	<mariadb/mysql.h>
+	<mysql.h>
+	<sqlite3.h>
+	<odbcinst.h>
+	<windows.h>
+	<unistd.h>
+
+1671737508 \\server\users\brecht\sources\cpp\cdbalib\include\cdbalib.h
+	<stdint.h>
+	<stdarg.h>
+
+1671737543 source:\\server\users\brecht\sources\cpp\cdbalib\src\cdbalib_test.c
+	"cdbalib.h"
+	<stdlib.h>
+	<stdio.h>
+

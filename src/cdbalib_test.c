@@ -29,7 +29,7 @@ void print_row (cdba_prep_handle stmt, int cols)
               printf("NULL");
             } else {
               printf("%s", val);
-              free(val);
+              cdba_free(val);
             }
           }
           break;
@@ -112,11 +112,14 @@ int main (int argc, char *argv[], char *envp[])
     cdba_prep_close(stmt);
   } else {
 
+    char* s;
     int n = cdba_prep_get_column_count(stmt);
     printf("# columns: %i\n", n);
 
     for (int i = 0; i < n; i++) {
-      printf("type[%i]: %i\tname[%i]: %s\n", i, (int)cdba_prep_get_column_type(stmt, i), i, cdba_prep_get_column_name(stmt, i));
+      s = cdba_prep_get_column_name(stmt, i);
+      printf("type[%i]: %i\tname[%i]: %s\n", i, (int)cdba_prep_get_column_type(stmt, i), i, (s ? s : "(no name)"));
+      cdba_free(s);
     }
 
     printf("[Odd rows]\n");

@@ -167,7 +167,8 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
   }
 #elif defined(DB_ODBC)
   db->dblib = dblib;
-  path = "DSN=p1log2db_test_msaccess;DBQ=\\\\SERVER\\Users\\brecht\\sources\\CPP\\p1log2db\\build\\test_msaccess.accdb;DriverId=25;FIL=MS Access;MaxBufferSize=2048;PageTimeout=5;UID=admin;";/////
+  //path = "DSN=cdbalib_test_msaccess;DBQ=\\\\SERVER\\Users\\brecht\\sources\\CPP\\cdbalib\\build\\test_msaccess.accdb;DriverId=25;FIL=MS Access;MaxBufferSize=2048;PageTimeout=5;UID=admin;";/////
+  path = "DSN=cdbalib_test_msaccess";/////
   if (SQLDriverConnectA(db->dblib->odbc_conn, NULL, (SQLCHAR*)path, SQL_NTS, NULL, 0, NULL, SQL_DRIVER_NOPROMPT) == SQL_ERROR) {
     free(db);
     return NULL;
@@ -956,14 +957,30 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_column_type (cdba_prep_handle stmt, int 
 #endif
 }
 
-DLL_EXPORT_CDBALIB const char* cdba_prep_get_column_name (cdba_prep_handle stmt, int col)
+DLL_EXPORT_CDBALIB char* cdba_prep_get_column_name (cdba_prep_handle stmt, int col)
 {
 #if defined(DB_MYSQL)
-  return stmt->mysql_result_metadata->fields[col].name;
+  char* colname = stmt->mysql_result_metadata->fields[col].name
+  return (colname ? strdup(colname) : NULL);
 #elif defined(DB_SQLITE3)
-  return sqlite3_column_name(stmt->sqlite3_prepstat, col);
+  char* colname = sqlite3_column_name(stmt->sqlite3_prepstat, col);
+  return (colname ? strdup(colname) : NULL);
 #elif defined(DB_ODBC)
-  return NULL;
+  SQLRETURN status;
+  SQLCHAR* colname;
+  SQLSMALLINT colnamelen;
+  colnamelen = 0;
+  status = SQLDescribeCol(stmt->odbc_prepstat, col + 1, NULL, 0, &colnamelen, NULL, NULL, NULL, NULL);
+  if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO)
+    return NULL;
+  if ((colname = (SQLCHAR*)malloc(sizeof(SQLCHAR) * ++colnamelen)) == NULL)
+    return NULL;
+  status = SQLDescribeCol(stmt->odbc_prepstat, col + 1, colname, colnamelen, &colnamelen, NULL, NULL, NULL, NULL);
+  if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO) {
+    free(colname);
+    return NULL;
+  }
+  return colname;
 #else
   return NULL;
 #endif
@@ -1099,6 +1116,14 @@ DLL_EXPORT_CDBALIB char* cdba_prep_get_column_text (cdba_prep_handle stmt, int c
 #else
 #endif
   return result;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+DLL_EXPORT_CDBALIB void cdba_free (void* data)
+{
+  if (data)
+    free(data);
 }
 
 ////////////////////////////////////////////////////////////////////////

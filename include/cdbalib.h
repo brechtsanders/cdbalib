@@ -1,6 +1,6 @@
 /**
  * @file cdbalib.h
- * @brief C database abstraction library with support for prepared statements - header file with main functions
+ * @brief CDBALIB - C database abstraction library with support for prepared statements - header file with main functions
  * @author Brecht Sanders
  *
  * Header file for the C database abstraction library with support for prepared statements (CDBALIB)
@@ -334,11 +334,11 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_column_type (cdba_prep_handle stmt, int 
 /*! \brief get column name in result of executed prepared statement
  * \param  stmt                  prepared statement handle
  * \param  col                   column number (first column is 0)
- * \return column name
+ * \return column name, the caller must call cdba_free() on the result when it is no longer needed
  * \sa     cdba_prep_execute()
  * \sa     cdba_prep_get_column_count()
  */
-DLL_EXPORT_CDBALIB const char* cdba_prep_get_column_name (cdba_prep_handle stmt, int col);
+DLL_EXPORT_CDBALIB char* cdba_prep_get_column_name (cdba_prep_handle stmt, int col);
 
 /*! \brief get integer value of column from result of executed prepared statement
  * \param  stmt                  prepared statement handle
@@ -367,7 +367,7 @@ DLL_EXPORT_CDBALIB double cdba_prep_get_column_float (cdba_prep_handle stmt, int
 /*! \brief get text value of column from result of executed prepared statement
  * \param  stmt                  prepared statement handle
  * \param  col                   column number (first column is 0)
- * \return integer text value
+ * \return text column value, the caller must call cdba_free() on the result when it is no longer needed
  * \sa     cdba_prep_execute()
  * \sa     cdba_prep_get_column_count()
  * \sa     cdba_prep_get_column_type()
@@ -375,6 +375,15 @@ DLL_EXPORT_CDBALIB double cdba_prep_get_column_float (cdba_prep_handle stmt, int
  * \sa     cdba_prep_get_column_float()
  */
 DLL_EXPORT_CDBALIB char* cdba_prep_get_column_text (cdba_prep_handle stmt, int col);
+
+
+
+/*! \brief free memory allocated by DCBALIB
+ * \param  data                  pointer to memory to be freed
+ * \sa     cdba_prep_get_column_name()
+ * \sa     cdba_prep_get_column_text()
+ */
+DLL_EXPORT_CDBALIB void cdba_free (void* data);
 
 
 
@@ -389,7 +398,7 @@ DLL_EXPORT_CDBALIB char* cdba_prep_get_column_text (cdba_prep_handle stmt, int c
 /*! \brief minor version number */
 #define CDBALIB_VERSION_MINOR 1
 /*! \brief micro version number */
-#define CDBALIB_VERSION_MICRO 0
+#define CDBALIB_VERSION_MICRO 1
 /*! @} */
 
 /*! \brief packed version number */
