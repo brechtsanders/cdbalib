@@ -3,6 +3,7 @@
 2022-12-22  Brecht Sanders  https://github.com/brechtsanders/
 
   * configure CI using GitHub Actions
+  * replaced my_bool with int in src/cdbalib.c
 
 0.1.1
 

@@ -149,7 +149,7 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
     return NULL;
   db->errmsg = NULL;
 #if defined(DB_MYSQL)
-  my_bool reconnect = 1;
+  int reconnect = 1;
   if ((db->mysql_conn = mysql_init(NULL)) == NULL) {
     free(db);
     return NULL;
@@ -411,7 +411,7 @@ struct mysql_argbindinfo_struct {
 struct mysql_resultbindinfo_struct {
   struct mysql_argbindinfo_struct value;
   unsigned long length;
-  my_bool is_null;
+  int is_null;
 };
 #endif
 

@@ -64,6 +64,7 @@ jobs:
         msystem: ${{ matrix.config.msystem }}
         install: >-
           make
+          pkg-config
           doxygen
           mingw-w64-${{ matrix.config.arch }}-sqlite3
           mingw-w64-${{ matrix.config.arch }}-libmariadbclient
