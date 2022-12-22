@@ -2,8 +2,8 @@
 
 2022-12-22  Brecht Sanders  https://github.com/brechtsanders/
 
-  * configure CI using GitHub Actions
-  * replaced my_bool with int in src/cdbalib.c
+  * configure CI using GitHub Actions (builds on Windows, Linux and macOS)
+  * fix missing my_bool in src/cdbalib.c for MySQL 8 and higher
 
 0.1.1
 

@@ -34,6 +34,7 @@ extern "C" {
 
 
 
+/*! \brief integer type used by CDBALIB */
 typedef int64_t db_int;
 
 /*! \brief database data types
@@ -42,7 +43,6 @@ typedef int64_t db_int;
  * \name   CDBA_TYPE_*
  * \{
  */
-/*! \brief major version number */
 #define CDBA_TYPE_NULL  ((db_int)0)      /**< NULL type */
 #define CDBA_TYPE_INT   ((db_int)1)      /**< integer number type */
 #define CDBA_TYPE_FLOAT ((db_int)2)      /**< floating point number type */
