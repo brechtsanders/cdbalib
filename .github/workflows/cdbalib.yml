@@ -91,6 +91,7 @@ jobs:
     - name: Build
       run: |
         make install \
+         CC=$CC \
          PREFIX=$PWD/release
 #    - if: matrix.config.os == 'windows-latest'
 #      name: Build package
