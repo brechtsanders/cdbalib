@@ -39,7 +39,7 @@ CP = cp -f
 CPDIR = cp -rf
 DOXYGEN = $(shell which doxygen)
 PKGCONFIG = $(shell which pkg-config)
-MYSQLCONFIG = $(shell which mysql_config)
+MYSQLCONFIG = $(shell which mariadb_config || which mysql_config)
 
 ifneq ($(OS),Windows_NT)
 SHARED_CFLAGS += -fPIC
