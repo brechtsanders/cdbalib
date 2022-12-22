@@ -1,0 +1,101 @@
+name: GitHub-CI for cdbalib
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false          # if a job fails don't abort other jobs
+      matrix:
+        config:
+          - {
+              name: "Windows 64-bit (gcc)",
+              os: windows-latest,
+              shell: 'msys2 {0}',
+              msystem: MINGW64,
+              arch: x86_64,
+              cc: x86_64-w64-mingw32-gcc.exe,
+              cxx: x86_64-w64-mingw32-g++.exe
+            }
+          - {
+              name: "Windows 32-bit (gcc)",
+              os: windows-latest,
+              shell: 'msys2 {0}',
+              msystem: MINGW32,
+              arch: i686,
+              cc: i686-w64-mingw32-gcc.exe,
+              cxx: i686-w64-mingw32-g++.exe
+            }
+          - {
+              name: "Ubuntu Linux (clang)",
+              os: ubuntu-latest,
+              shell: bash,
+              arch: x86_64,
+              cc: clang,
+              cxx: clang++
+            }
+          - {
+              name: "macOS (clang)",
+              os: macos-latest,
+              shell: bash,
+              arch: x86_64,
+              cc: clang,
+              cxx: clang++
+            }
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.config.shell }}
+    env:
+      CC: ${{ matrix.config.cc }}
+      CXX: ${{ matrix.config.cxx }}
+
+    steps:
+    - if: matrix.config.os == 'windows-latest'
+      name: Install build dependencies (Windows/MSYS)
+      uses: msys2/setup-msys2@v2
+      with:
+        update: false
+        msystem: ${{ matrix.config.msystem }}
+        install: >-
+          git
+          make
+          zip
+          mingw-w64-${{ matrix.config.arch }}-sqlite3
+          mingw-w64-${{ matrix.config.arch }}-libmariadbclient
+    - if: matrix.config.os == 'ubuntu-latest'
+      name: Install build dependencies (Linux)
+      run: |
+        sudo apt-get install \
+         libsqlite3-dev \
+         libmariadb-dev-compat
+    - if: matrix.config.os == 'macos-latest'
+      name: Install build dependencies (macOS)
+      run: |
+        brew install \
+         sqlite \
+         mysql-client
+    - name: Build
+      run: |
+        make install \
+         PREFIX=$PWD/release
+#    - if: matrix.config.os == 'windows-latest'
+#      name: Build package
+#      run: |
+#        PKG_CONFIG_PATH=$PWD/deps/lib/pkgconfig:/usr/local/opt/libarchive/lib/pkgconfig:$PKG_CONFIG_PATH \
+#         make binarypackage \
+#         STATIC=1 \
+#         CFLAGS="-I$PWD/deps/include -I/usr/local/opt/libarchive/include" \
+#         LDFLAGS="-L$PWD/deps/lib -L/usr/local/opt/libarchive/lib"
+#        mv winlibs-tools-*.zip winlibs-tools-${{ matrix.config.arch }}.zip
+#    - if: matrix.config.os == 'windows-latest'
+#      name: Upload package
+#      uses: actions/upload-artifact@v1
+#      with:
+#        path: ./release
+#        name: winlibs-tools-${{ matrix.config.arch }}.zip
