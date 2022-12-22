@@ -80,6 +80,7 @@ jobs:
         brew install \
          sqlite \
          mysql-client
+    - uses: actions/checkout@v1
     - name: Build
       run: |
         make install \
