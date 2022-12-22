@@ -9,6 +9,9 @@
 #else
 #include <mysql.h>
 #endif
+#if defined(LIBMYSQL_VERSION_ID) && LIBMYSQL_VERSION_ID > 80000
+#define my_bool int
+#endif
 #elif defined(DB_SQLITE3)
 #include <sqlite3.h>
 #elif defined(DB_ODBC)
@@ -102,7 +105,7 @@ DLL_EXPORT_CDBALIB const char* cdba_library_get_version (cdba_library_handle dbl
   static char buf[12];
   unsigned long l;
   l = mysql_get_client_version();
-  snprintf(buf, sizeof(buf), "%li.%li.%li", (long)(l / 10000), (long)((l / 100) % 100), (long)(l % 100));
+  snprintf(buf, sizeof(buf), "%u.%u.%u", (unsigned int)(l / 10000), (unsigned int)((l / 100) % 100), (unsigned int)(l % 100));
   return buf;
 #elif defined(DB_SQLITE3)
   return sqlite3_libversion();
@@ -149,7 +152,7 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
     return NULL;
   db->errmsg = NULL;
 #if defined(DB_MYSQL)
-  int reconnect = 1;
+  my_bool reconnect = 1;
   if ((db->mysql_conn = mysql_init(NULL)) == NULL) {
     free(db);
     return NULL;
@@ -411,7 +414,7 @@ struct mysql_argbindinfo_struct {
 struct mysql_resultbindinfo_struct {
   struct mysql_argbindinfo_struct value;
   unsigned long length;
-  int is_null;
+  my_bool is_null;
 };
 #endif
 
