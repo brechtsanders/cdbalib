@@ -398,7 +398,7 @@ DLL_EXPORT_CDBALIB void cdba_free (void* data);
 /*! \brief minor version number */
 #define CDBALIB_VERSION_MINOR 1
 /*! \brief micro version number */
-#define CDBALIB_VERSION_MICRO 1
+#define CDBALIB_VERSION_MICRO 2
 /*! @} */
 
 /*! \brief packed version number */

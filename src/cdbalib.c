@@ -102,7 +102,7 @@ DLL_EXPORT_CDBALIB const char* cdba_library_get_version (cdba_library_handle dbl
   static char buf[12];
   unsigned long l;
   l = mysql_get_client_version();
-  snprintf(buf, sizeof(buf), "%li.%li.%li", l / 10000, (l / 100) % 100, l % 100);
+  snprintf(buf, sizeof(buf), "%li.%li.%li", (long)(l / 10000), (long)((l / 100) % 100), (long)(l % 100));
   return buf;
 #elif defined(DB_SQLITE3)
   return sqlite3_libversion();
