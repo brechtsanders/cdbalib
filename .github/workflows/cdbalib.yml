@@ -66,7 +66,6 @@ jobs:
           make
           pkg-config
           doxygen
-          graphviz
           mingw-w64-${{ matrix.config.arch }}-sqlite3
           mingw-w64-${{ matrix.config.arch }}-libmariadbclient
     - if: matrix.config.os == 'ubuntu-latest'
@@ -87,7 +86,8 @@ jobs:
           graphviz \
           sqlite \
           mysql
-    - uses: actions/checkout@v1
+    - name: Check out source code
+      uses: actions/checkout@v1
     - name: Build
       run: |
         make install \
