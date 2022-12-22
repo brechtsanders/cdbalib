@@ -3,6 +3,7 @@
 2022-12-22  Brecht Sanders  https://github.com/brechtsanders/
 
   * cdba_prep_get_column_name() now returns char* instead of const char*
+  * added cdba_free() to deallocate returned char* results
 
 0.1.0
 
