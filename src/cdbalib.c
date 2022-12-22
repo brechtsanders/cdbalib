@@ -9,7 +9,7 @@
 #else
 #include <mysql.h>
 #endif
-#if defined(LIBMYSQL_VERSION_ID) && LIBMYSQL_VERSION_ID > 80000
+#if defined(LIBMYSQL_VERSION_ID) && LIBMYSQL_VERSION_ID > 80000
 #define my_bool int
 #endif
 #elif defined(DB_SQLITE3)
