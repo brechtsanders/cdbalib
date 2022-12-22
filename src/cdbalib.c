@@ -960,10 +960,10 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_column_type (cdba_prep_handle stmt, int 
 DLL_EXPORT_CDBALIB char* cdba_prep_get_column_name (cdba_prep_handle stmt, int col)
 {
 #if defined(DB_MYSQL)
-  char* colname = stmt->mysql_result_metadata->fields[col].name
+  const char* colname = stmt->mysql_result_metadata->fields[col].name;
   return (colname ? strdup(colname) : NULL);
 #elif defined(DB_SQLITE3)
-  char* colname = sqlite3_column_name(stmt->sqlite3_prepstat, col);
+  const char* colname = sqlite3_column_name(stmt->sqlite3_prepstat, col);
   return (colname ? strdup(colname) : NULL);
 #elif defined(DB_ODBC)
   SQLRETURN status;
