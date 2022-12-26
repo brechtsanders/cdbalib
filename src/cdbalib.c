@@ -41,7 +41,6 @@ struct cdba_library_handle_struct {
 #elif defined(DB_SQLITE3)
 #elif defined(DB_ODBC)
   SQLHENV odbc_env;
-  SQLHDBC odbc_conn;
 #else
 #endif
 };
@@ -64,11 +63,6 @@ DLL_EXPORT_CDBALIB cdba_library_handle cdba_library_initialize ()
   }
   SQLSetEnvAttr(dblib->odbc_env, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC2, 0);
   //SQLSetEnvAttr(dblib->odbc_env, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0);
-  if (SQLAllocHandle(SQL_HANDLE_DBC, dblib->odbc_env, &dblib->odbc_conn) == SQL_ERROR) {
-    SQLFreeHandle(SQL_HANDLE_ENV, dblib->odbc_env);
-    free(dblib);
-    return NULL;
-  }
   dblib->drivername = "ODBC";
 #else
   free(dblib);
@@ -86,10 +80,6 @@ DLL_EXPORT_CDBALIB void cdba_library_cleanup (cdba_library_handle dblib)
 #elif defined(DB_SQLITE3)
   sqlite3_shutdown();
 #elif defined(DB_ODBC)
-  if (dblib->odbc_conn) {
-    SQLDisconnect(dblib->odbc_conn);
-    SQLFreeHandle(SQL_HANDLE_DBC, dblib->odbc_conn);
-  }
   if (dblib->odbc_env)
     SQLFreeHandle(SQL_HANDLE_ENV, dblib->odbc_env);
 #else
@@ -103,32 +93,40 @@ DLL_EXPORT_CDBALIB const char* cdba_library_get_name (cdba_library_handle dblib)
   return dblib->drivername;
 }
 
-DLL_EXPORT_CDBALIB const char* cdba_library_get_version (cdba_library_handle dblib)
+DLL_EXPORT_CDBALIB char* cdba_library_get_version (cdba_library_handle dblib)
 {
 #if defined(DB_MYSQL)
   static char buf[12];
   unsigned long l;
   l = mysql_get_client_version();
   snprintf(buf, sizeof(buf), "%u.%u.%u", (unsigned int)(l / 10000), (unsigned int)((l / 100) % 100), (unsigned int)(l % 100));
-  return buf;
+  return strdup(buf);
 #elif defined(DB_SQLITE3)
-  return sqlite3_libversion();
+  return strdup(sqlite3_libversion());
 #elif defined(DB_ODBC)
   static SQLCHAR buf[12];
+  SQLHDBC odbc_conn;
   SQLSMALLINT buflen = 0;
-  if (SQLGetInfoA(dblib->odbc_conn, SQL_ODBC_VER, buf, sizeof(buf), &buflen) != SQL_SUCCESS) {
+  if (SQLAllocHandle(SQL_HANDLE_DBC, dblib->odbc_env, &odbc_conn) == SQL_ERROR) {
+    return NULL;
+  }
+  if (SQLGetInfoA(odbc_conn, SQL_ODBC_VER, buf, sizeof(buf), &buflen) != SQL_SUCCESS) {
+/*
     SQLCHAR sql_errmsg[SQL_MAX_MESSAGE_LENGTH + 1];
     SQLCHAR sql_state[6];
     SQLINTEGER sql_native_error = 0;
     SQLSMALLINT sql_errmsglen = 0;
-    if (SQLErrorA(dblib->odbc_env, dblib->odbc_conn, SQL_NULL_HSTMT, sql_state, &sql_native_error, sql_errmsg, sizeof(sql_errmsg), &sql_errmsglen) == SQL_SUCCESS) {
-      printf("ODBC error: %s\n", sql_errmsg);
+    if (SQLErrorA(dblib->odbc_env, odbc_conn, SQL_NULL_HSTMT, sql_state, &sql_native_error, sql_errmsg, sizeof(sql_errmsg), &sql_errmsglen) == SQL_SUCCESS) {
+      fprintf(stderr, "ODBC error: %s\n", sql_errmsg);
     }
+*/
+    SQLFreeHandle(SQL_HANDLE_DBC, odbc_conn);
     return NULL;
   }
-  return (char*)buf;
+  SQLFreeHandle(SQL_HANDLE_DBC, odbc_conn);
+  return strdup((char*)buf);
 #else
-  return CDBALIB_VERSION_STRING;
+  return strdup(CDBALIB_VERSION_STRING);
 #endif
 }
 
@@ -141,6 +139,7 @@ struct cdba_handle_struct
 #elif defined(DB_SQLITE3)
   sqlite3* sqlite3_conn;
 #elif defined(DB_ODBC)
+  SQLHDBC odbc_conn;
   cdba_library_handle dblib;
 #else
 #endif
@@ -174,9 +173,14 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
   }
 #elif defined(DB_ODBC)
   db->dblib = dblib;
+  if (SQLAllocHandle(SQL_HANDLE_DBC, dblib->odbc_env, &db->odbc_conn) == SQL_ERROR) {
+    free(db);
+    return NULL;
+  }
+  SQLSetConnectAttr(db->odbc_conn, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
   //path = "DSN=cdbalib_test_msaccess;DBQ=\\\\SERVER\\Users\\brecht\\sources\\CPP\\cdbalib\\build\\test_msaccess.accdb;DriverId=25;FIL=MS Access;MaxBufferSize=2048;PageTimeout=5;UID=admin;";/////
   path = "DSN=cdbalib_test_msaccess";/////
-  if (SQLDriverConnectA(db->dblib->odbc_conn, NULL, (SQLCHAR*)path, SQL_NTS, NULL, 0, NULL, SQL_DRIVER_NOPROMPT) == SQL_ERROR) {
+  if (SQLDriverConnectA(db->odbc_conn, NULL, (SQLCHAR*)path, SQL_NTS, NULL, 0, NULL, SQL_DRIVER_NOPROMPT) == SQL_ERROR) {
     free(db);
     return NULL;
   }
@@ -198,7 +202,10 @@ DLL_EXPORT_CDBALIB void cdba_close (cdba_handle db)
 #elif defined(DB_SQLITE3)
   sqlite3_close(db->sqlite3_conn);
 #elif defined(DB_ODBC)
-  /////SQLDisconnect(db->dblib->odbc_conn);
+  if (db->odbc_conn) {
+    SQLDisconnect(db->odbc_conn);
+    SQLFreeHandle(SQL_HANDLE_DBC, db->odbc_conn);
+  }
 #else
 #endif
   free(db);
@@ -225,13 +232,13 @@ void cdba_set_odbc_error (cdba_handle db, SQLHSTMT stmt, SQLSMALLINT handletype)
   pos = 0;
   i = 1;
   len = 0;
-  while (SQLGetDiagFieldA(handletype, (handletype == SQL_HANDLE_STMT ? stmt : db->dblib->odbc_conn), i, SQL_DIAG_MESSAGE_TEXT, NULL, 0, &len) != SQL_NO_DATA) {
+  while (SQLGetDiagFieldA(handletype, (handletype == SQL_HANDLE_STMT ? stmt : db->odbc_conn), i, SQL_DIAG_MESSAGE_TEXT, NULL, 0, &len) != SQL_NO_DATA) {
     errmsglen += (i > 1 ? 1 : 0) + len + 1;
     if ((db->errmsg = (char*)realloc(db->errmsg, errmsglen)) == NULL)
       break;
     if (i > 1)
       strcpy(db->errmsg + pos++, "\n");
-    if (SQLGetDiagFieldA(handletype, (handletype == SQL_HANDLE_STMT ? stmt : db->dblib->odbc_conn), i, SQL_DIAG_MESSAGE_TEXT, db->errmsg + pos, len + 1, NULL) == SQL_NO_DATA)
+    if (SQLGetDiagFieldA(handletype, (handletype == SQL_HANDLE_STMT ? stmt : db->odbc_conn), i, SQL_DIAG_MESSAGE_TEXT, db->errmsg + pos, len + 1, NULL) == SQL_NO_DATA)
       continue;
     pos += len;
     i++;
@@ -284,7 +291,7 @@ DLL_EXPORT_CDBALIB int cdba_sql (cdba_handle db, const char* sql)
 #elif defined(DB_ODBC)
   SQLHDBC stmt;
   SQLRETURN status;
-  if (SQLAllocHandle(SQL_HANDLE_STMT, db->dblib->odbc_conn, &stmt) != SQL_SUCCESS) {
+  if (SQLAllocHandle(SQL_HANDLE_STMT, db->odbc_conn, &stmt) != SQL_SUCCESS) {
     cdba_set_error(db, "SQLAllocHandle() failed");
     /////TO DO: cdba_set_error(db, ???);
     return -1;
@@ -362,7 +369,7 @@ DLL_EXPORT_CDBALIB void cdba_begin_transaction (cdba_handle db)
 #endif
 */
 #if DB_ODBC
-  SQLSetConnectAttr(db->dblib->odbc_conn, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
+  SQLSetConnectAttr(db->odbc_conn, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
 #else
   cdba_sql(db, "BEGIN");
 #endif
@@ -380,8 +387,8 @@ DLL_EXPORT_CDBALIB void cdba_commit_transaction (cdba_handle db)
 #endif
 */
 #if DB_ODBC
-  SQLEndTran(SQL_HANDLE_DBC, db->dblib->odbc_conn, SQL_COMMIT);
-  SQLSetConnectAttr(db->dblib->odbc_conn, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER);
+  SQLEndTran(SQL_HANDLE_DBC, db->odbc_conn, SQL_COMMIT);
+  SQLSetConnectAttr(db->odbc_conn, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER);
 #else
   cdba_sql(db, "COMMIT");
 #endif
@@ -398,8 +405,8 @@ DLL_EXPORT_CDBALIB void cdba_rollback_transaction (cdba_handle db)
 #endif
 */
 #if defined(DB_ODBC)
-  SQLEndTran(SQL_HANDLE_DBC, db->dblib->odbc_conn, SQL_ROLLBACK);
-  SQLSetConnectAttr(db->dblib->odbc_conn, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER);
+  SQLEndTran(SQL_HANDLE_DBC, db->odbc_conn, SQL_ROLLBACK);
+  SQLSetConnectAttr(db->odbc_conn, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_ON, SQL_IS_UINTEGER);
 #else
   cdba_sql(db, "ROLLBACK");
 #endif
@@ -441,6 +448,9 @@ struct cdba_prep_handle_struct {
 #elif defined(DB_SQLITE3)
   int sqlite3_first_step_status;
 #elif defined(DB_ODBC)
+  cdba_handle db;
+  SQLLEN* odbc_bind_len;
+  int odbc_first_step_status;
 #else
 #endif
   int numargs;
@@ -485,7 +495,7 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
 #elif defined(DB_ODBC)
   SQLRETURN status;
   SQLSMALLINT n;
-  status = SQLAllocHandle(SQL_HANDLE_STMT, db->dblib->odbc_conn, &stmt->odbc_prepstat);
+  status = SQLAllocHandle(SQL_HANDLE_STMT, db->odbc_conn, &stmt->odbc_prepstat);
   if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO) {
     cdba_set_error(db, "SQLAllocHandle() failed");
     free(stmt);
@@ -494,21 +504,39 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
   status = SQLPrepare(stmt->odbc_prepstat, (SQLCHAR*)sql, SQL_NTS);
   if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO) {
     cdba_set_odbc_error(db, stmt->odbc_prepstat, SQL_HANDLE_STMT);
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt->odbc_prepstat);
     free(stmt);
     return NULL;
   }
+/*
   status = SQLExecute(stmt->odbc_prepstat);
   if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO) {
     cdba_set_odbc_error(db, stmt->odbc_prepstat, SQL_HANDLE_STMT);
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt->odbc_prepstat);
     free(stmt);
     return NULL;
   }
+*/
+  stmt->db = db;
+  stmt->odbc_first_step_status = -1;
   stmt->numargs = -1;
-  /////TO DO: stmt->numargs = ???
+  status = SQLNumParams(stmt->odbc_prepstat, &n);
+  if (status == SQL_SUCCESS || status == SQL_SUCCESS_WITH_INFO)
+    stmt->numargs = n;
   stmt->numcols = 0;
   status = SQLNumResultCols(stmt->odbc_prepstat, &n);
   if (status == SQL_SUCCESS || status == SQL_SUCCESS_WITH_INFO)
     stmt->numcols = n;
+  if (stmt->numargs <= 0) {
+    stmt->odbc_bind_len = NULL;
+  } else if ((stmt->odbc_bind_len = (SQLLEN*)malloc(sizeof(SQLLEN) * stmt->numargs)) == NULL) {
+    cdba_set_error(db, "Memory allocation error");
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt->odbc_prepstat);
+    free(stmt);
+    return NULL;
+  } else {
+    memset(stmt->odbc_bind_len, 0, sizeof(SQLLEN) * stmt->numargs);
+  }
 #else
   free(stmt);
   stmt = NULL;
@@ -544,6 +572,8 @@ DLL_EXPORT_CDBALIB void cdba_prep_reset (cdba_prep_handle stmt)
   sqlite3_clear_bindings(stmt->sqlite3_prepstat);
   stmt->sqlite3_first_step_status = -1;
 #elif defined(DB_ODBC)
+  stmt->odbc_first_step_status = -1;
+  SQLCancel(stmt->odbc_prepstat);
 #else
 #endif
 }
@@ -567,8 +597,12 @@ DLL_EXPORT_CDBALIB void cdba_prep_close (cdba_prep_handle stmt)
   if (stmt->sqlite3_prepstat)
     sqlite3_finalize(stmt->sqlite3_prepstat);
 #elif defined(DB_ODBC)
-  if (stmt->odbc_prepstat)
+  if (stmt->odbc_bind_len)
+    free(stmt->odbc_bind_len);
+  if (stmt->odbc_prepstat) {
+    SQLCancel(stmt->odbc_prepstat);
     SQLFreeHandle(SQL_HANDLE_STMT, stmt->odbc_prepstat);
+  }
 #else
 #endif
   free(stmt);
@@ -630,7 +664,7 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
         bindarg[i].buffer = &(argcopy[i].intval);
         break;
       case CDBA_TYPE_FLOAT :
-        argcopy[i].floatval = va_arg(argp, double);
+        argcopy[i].floatval = va_arg(argp, db_flt);
         bindarg[i].buffer_type = MYSQL_TYPE_DOUBLE;
         bindarg[i].buffer = &(argcopy[i].intval);
         break;
@@ -752,7 +786,7 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
         break;
       case CDBA_TYPE_FLOAT :
         {
-          double val = va_arg(argp, double);
+          double val = va_arg(argp, db_flt);
           sqlite3_bind_double(stmt->sqlite3_prepstat, i + 1, val);
         }
         break;
@@ -791,6 +825,54 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
       break;
   }
 #elif defined(DB_ODBC)
+  SQLRETURN odbcstatus;
+  //bind arguments
+  for (i = 0; i < stmt->numargs; i++) {
+    type = va_arg(argp, int);
+    switch (type) {
+      case CDBA_TYPE_NULL :
+        stmt->odbc_bind_len[i] = SQL_NULL_DATA;
+        odbcstatus = SQLBindParameter(stmt->odbc_prepstat, i + 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_LONGVARCHAR, 1, 1, NULL, 0, &stmt->odbc_bind_len[i]);
+        break;
+      case CDBA_TYPE_INT :
+        {
+          //SQLBIGINT val = va_arg(argp, db_int);
+          SQLINTEGER val = va_arg(argp, db_int);
+          //stmt->odbc_bind_len[i] = sizeof(val);
+          //odbcstatus = SQLBindParameter(stmt->odbc_prepstat, i + 1, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_BIGINT, 0, 0, &val, 0, NULL);
+          odbcstatus = SQLBindParameter(stmt->odbc_prepstat, i + 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER, 0, 0, &val, 0, NULL);
+        }
+        break;
+      case CDBA_TYPE_FLOAT :
+        {
+          SQLDOUBLE val = va_arg(argp, db_flt);
+          //stmt->odbc_bind_len[i] = sizeof(val);
+          odbcstatus = SQLBindParameter(stmt->odbc_prepstat, i + 1, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, 0, 0, &val, 0, NULL);
+        }
+        break;
+      case CDBA_TYPE_TEXT :
+        {
+          SQLCHAR* val = va_arg(argp, char*);
+          stmt->odbc_bind_len[i] = (val ? SQL_NTS : SQL_NULL_DATA);
+          odbcstatus = SQLBindParameter(stmt->odbc_prepstat, i + 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_LONGVARCHAR, 12, 12, (val ? val : NULL), (val ? strlen(val) : 0), &stmt->odbc_bind_len[i]);
+        }
+        break;
+      default :
+        cdba_prep_set_error(stmt, "Unknown database type");
+        va_end(argp);
+        return -1;
+    }
+printf("odbcstatus[%i](type:%i): %i\n", (int)i, (int)type, (int)odbcstatus);/////
+  }
+  odbcstatus = SQLExecute(stmt->odbc_prepstat);
+printf("odbcstatus: %i\n", (int)odbcstatus);/////
+  if (odbcstatus != SQL_SUCCESS && odbcstatus != SQL_SUCCESS_WITH_INFO) {
+    cdba_set_odbc_error(stmt->db, stmt->odbc_prepstat, SQL_HANDLE_STMT);
+    /////cdba_set_odbc_error(NULL, stmt->odbc_prepstat, SQL_HANDLE_STMT);
+    return -2;
+  }
+  stmt->odbc_first_step_status = 1;
+  status = odbcstatus;
 #else
 #endif
   va_end(argp);
@@ -847,6 +929,10 @@ DLL_EXPORT_CDBALIB int cdba_prep_fetch_row (cdba_prep_handle stmt)
     return 1;
   return (status == SQLITE_DONE || status == SQLITE_OK ? 0 : -1);
 #elif defined(DB_ODBC)
+  if (stmt->odbc_first_step_status == 1) {
+    stmt->odbc_first_step_status = 0;       /////TO DO: what id query returns no results?
+    return 1;
+  }
   SQLRETURN status;
   status = SQLFetch(stmt->odbc_prepstat);
   return (status == SQL_SUCCESS || status == SQL_SUCCESS_WITH_INFO ? 1 : 0);
@@ -1162,5 +1248,7 @@ DLL_EXPORT_CDBALIB const char* cdba_get_version_string ()
 */
 
 //ODBC: see also: https://learn.microsoft.com/en-us/sql/connect/odbc/cpp-code-example-app-connect-access-sql-db?view=sql-server-ver16
+//ODBC: see also: https://learn.microsoft.com/en-us/sql/relational-databases/native-client-odbc-how-to/execute-queries/prepare-and-execute-a-statement-odbc?view=sql-server-ver16
 //ODBC: see also: https://www.easysoft.com/developer/languages/c/examples/ListDBTables.html
 //ODBC: see also: https://www.easysoft.com/developer/languages/c/examples/Transactions.html
+

@@ -48,6 +48,7 @@ int main (int argc, char *argv[], char *envp[])
   cdba_library_handle dblib;
   cdba_handle db;
   cdba_prep_handle stmt;
+  char* s;
 
   //show version
   printf("cdbalib version %s\n", cdba_get_version_string());
@@ -57,7 +58,9 @@ int main (int argc, char *argv[], char *envp[])
     fprintf(stderr, "Error initializing database\n");
   }
   printf("Database driver name: %s\n", cdba_library_get_name(dblib));
-  printf("Database driver version: %s\n", cdba_library_get_version(dblib));
+  s = cdba_library_get_version(dblib);
+  printf("Database driver version: %s\n", (s ? s : "(unknown)"));
+  free(s);
 
   if ((db = cdba_open(dblib, "cdbalist_test.sq3")) == NULL) {
     fprintf(stderr, "Error opening database\n");
@@ -83,9 +86,9 @@ int main (int argc, char *argv[], char *envp[])
   if (cdba_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (1,1.001,'Test 1')") != 0) {
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
-  if (cdba_multiple_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (2,2.0002,'Test 2');"
-                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (3,3.00003,'Test 3');"
-                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (4,4.000004,'Test 4');"
+  if (cdba_multiple_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (2,2.002,'Test 2');"
+                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (3,3.0003,'Test 3');"
+                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (4,4.00004,'Test 4');"
   ) != 0) {
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
@@ -100,12 +103,27 @@ int main (int argc, char *argv[], char *envp[])
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
 
+printf("[\n");/////
+  if ((stmt = cdba_create_preparedstatement(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (?,?,?)")) == NULL) {
+    fprintf(stderr, "Error preparing SQL statement: %s\n", cdba_get_error(db));
+  } else if (cdba_prep_execute(stmt, CDBA_TYPE_INT, (db_int)5, CDBA_TYPE_FLOAT, (db_flt)5.000005, CDBA_TYPE_TEXT, "Test 5") != 0) {
+    fprintf(stderr, "Error executing SQL statement: %s\n", cdba_get_error(db));
+    cdba_prep_close(stmt);
+  } else {
+    if (cdba_prep_execute(stmt, CDBA_TYPE_INT, (db_int)6, CDBA_TYPE_FLOAT, (db_flt)6.0000006, CDBA_TYPE_TEXT, "Test 6") != 0) {
+      fprintf(stderr, "Error executing SQL statement: %s\n", cdba_get_error(db));
+    }
+    cdba_prep_close(stmt);
+  }
+printf("]\n");/////
+
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT * FROM lastvalue")) == NULL) {
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT 'Test' AS tst, * FROM lastvalue WHERE device=? AND epoch > ?")) == NULL) {
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT * FROM lastvalue WHERE device=? AND FLOOR(obisid/10)=?")) == NULL) {
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT * FROM test1 WHERE intval-2*FLOOR(intval/2)=? ORDER BY intval")) == NULL) {
+  if ((stmt = cdba_create_preparedstatement(db, "SELECT * FROM test1 WHERE intval-2*ROUND(intval/2)=? ORDER BY intval")) == NULL) {
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT 123 AS intval, 3.141592 AS fltval, 'Test' AS txtval")) == NULL) {
-  if ((stmt = cdba_create_preparedstatement(db, "SELECT 123 AS intval, 3.141592 AS fltval, 'Test' AS txtval, NULL AS nulval")) == NULL) {
+  //if ((stmt = cdba_create_preparedstatement(db, "SELECT 123 AS intval, 3.141592 AS fltval, 'Test' AS txtval, NULL AS nulval")) == NULL) {
     fprintf(stderr, "Error preparing SQL statement: %s\n", cdba_get_error(db));
   } else if (cdba_prep_execute(stmt, CDBA_TYPE_INT, (db_int)1) != 0) {
     fprintf(stderr, "Error executing SQL statement: %s\n", cdba_get_error(db));
@@ -123,7 +141,9 @@ int main (int argc, char *argv[], char *envp[])
     }
 
     printf("[Odd rows]\n");
-    print_row(stmt, n);
+    while (cdba_prep_fetch_row(stmt) > 0) {
+      print_row(stmt, n);
+    }
 
     cdba_prep_reset(stmt);
 

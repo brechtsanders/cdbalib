@@ -36,6 +36,7 @@ extern "C" {
 
 /*! \brief integer type used by CDBALIB */
 typedef int64_t db_int;
+typedef double db_flt;
 
 /*! \brief database data types
  * \sa     cdba_prep_get_column_type()
@@ -80,10 +81,10 @@ DLL_EXPORT_CDBALIB const char* cdba_library_get_name (cdba_library_handle dblib)
 
 /*! \brief get version of database driver
  * \param  dblib                 database library handle
- * \return version of database driver
+ * \return version of database driver, the caller must call cdba_free() on the result when it is no longer needed
  * \sa     cdba_library_initialize()
  */
-DLL_EXPORT_CDBALIB const char* cdba_library_get_version (cdba_library_handle dblib);
+DLL_EXPORT_CDBALIB char* cdba_library_get_version (cdba_library_handle dblib);
 
 
 
@@ -236,7 +237,7 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
 
 /*! \brief get number of arguments in prepared statement
  * \param  stmt                  prepared statement handle
- * \return number of arguments in prepared statement
+ * \return number of arguments in prepared statement or < 0 if not supported
  * \sa     cdba_create_preparedstatement()
  */
 DLL_EXPORT_CDBALIB int cdba_prep_get_argument_count (cdba_prep_handle stmt);
@@ -380,6 +381,7 @@ DLL_EXPORT_CDBALIB char* cdba_prep_get_column_text (cdba_prep_handle stmt, int c
 
 /*! \brief free memory allocated by DCBALIB
  * \param  data                  pointer to memory to be freed
+ * \sa     cdba_library_get_version()
  * \sa     cdba_prep_get_column_name()
  * \sa     cdba_prep_get_column_text()
  */
@@ -398,7 +400,7 @@ DLL_EXPORT_CDBALIB void cdba_free (void* data);
 /*! \brief minor version number */
 #define CDBALIB_VERSION_MINOR 1
 /*! \brief micro version number */
-#define CDBALIB_VERSION_MICRO 2
+#define CDBALIB_VERSION_MICRO 3
 /*! @} */
 
 /*! \brief packed version number */

@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1671315444 source:z:\cdbalib\src\cdbalib.c
+1672087328 source:z:\cdbalib\src\cdbalib.c
 	"cdbalib.h"
 	<stdlib.h>
 	<stdio.h>
@@ -11,16 +11,16 @@
 	<windows.h>
 	<unistd.h>
 
-1671653403 z:\cdbalib\include\cdbalib.h
+1672083646 z:\cdbalib\include\cdbalib.h
 	<stdint.h>
 	<stdarg.h>
 
-1671654047 source:z:\cdbalib\src\cdbalib_test.c
+1672087095 source:z:\cdbalib\src\cdbalib_test.c
 	"cdbalib.h"
 	<stdlib.h>
 	<stdio.h>
 
-1671737428 source:\\server\users\brecht\sources\cpp\cdbalib\src\cdbalib.c
+1672083695 source:\\server\users\brecht\sources\cpp\cdbalib\src\cdbalib.c
 	"cdbalib.h"
 	<stdlib.h>
 	<stdio.h>
@@ -32,11 +32,11 @@
 	<windows.h>
 	<unistd.h>
 
-1671738698 \\server\users\brecht\sources\cpp\cdbalib\include\cdbalib.h
+1672083646 \\server\users\brecht\sources\cpp\cdbalib\include\cdbalib.h
 	<stdint.h>
 	<stdarg.h>
 
-1671737543 source:\\server\users\brecht\sources\cpp\cdbalib\src\cdbalib_test.c
+1672084044 source:\\server\users\brecht\sources\cpp\cdbalib\src\cdbalib_test.c
 	"cdbalib.h"
 	<stdlib.h>
 	<stdio.h>
