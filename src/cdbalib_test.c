@@ -103,7 +103,6 @@ int main (int argc, char *argv[], char *envp[])
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
 
-printf("[\n");/////
   if ((stmt = cdba_create_preparedstatement(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (?,?,?)")) == NULL) {
     fprintf(stderr, "Error preparing SQL statement: %s\n", cdba_get_error(db));
   } else if (cdba_prep_execute(stmt, CDBA_TYPE_INT, (db_int)5, CDBA_TYPE_FLOAT, (db_flt)5.000005, CDBA_TYPE_TEXT, "Test 5") != 0) {
@@ -115,7 +114,6 @@ printf("[\n");/////
     }
     cdba_prep_close(stmt);
   }
-printf("]\n");/////
 
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT * FROM lastvalue")) == NULL) {
   //if ((stmt = cdba_create_preparedstatement(db, "SELECT 'Test' AS tst, * FROM lastvalue WHERE device=? AND epoch > ?")) == NULL) {
@@ -146,8 +144,6 @@ printf("]\n");/////
     }
 
     cdba_prep_reset(stmt);
-
-
 
     printf("[Even rows]\n");
     if (cdba_prep_execute(stmt, CDBA_TYPE_INT, (db_int)0) != 0) {

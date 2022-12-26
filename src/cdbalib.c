@@ -178,12 +178,20 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
     return NULL;
   }
   SQLSetConnectAttr(db->odbc_conn, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
+/*/
   //path = "DSN=cdbalib_test_msaccess;DBQ=\\\\SERVER\\Users\\brecht\\sources\\CPP\\cdbalib\\build\\test_msaccess.accdb;DriverId=25;FIL=MS Access;MaxBufferSize=2048;PageTimeout=5;UID=admin;";/////
   path = "DSN=cdbalib_test_msaccess";/////
   if (SQLDriverConnectA(db->odbc_conn, NULL, (SQLCHAR*)path, SQL_NTS, NULL, 0, NULL, SQL_DRIVER_NOPROMPT) == SQL_ERROR) {
     free(db);
     return NULL;
   }
+/*/
+  path = "cdbalib_test_msaccess";/////
+  if (SQLConnectA(db->odbc_conn, (SQLCHAR*)path, SQL_NTS, NULL, 0, NULL, 0) == SQL_ERROR) {
+    free(db);
+    return NULL;
+  }
+/**/
 #else
   free(db);
   db = NULL;
@@ -352,7 +360,18 @@ DLL_EXPORT_CDBALIB int cdba_multiple_sql (cdba_handle db, const char* sql)
   }
   return 0;
 #elif defined(DB_ODBC)
-  return cdba_sql(db, sql);/////
+  SQLRETURN status;
+  SQLUINTEGER batchsupport;
+  SQLSMALLINT len;
+  //detect if batch statement execution is supported
+  status = SQLGetInfo(db->odbc_conn, SQL_BATCH_SUPPORT, &batchsupport, sizeof(batchsupport), &len);
+  if (status == SQL_SUCCESS || status == SQL_SUCCESS_WITH_INFO) {
+    if (batchsupport == 0) {
+      cdba_set_error(db, "batch statement execution not supported");
+      return -1;
+    }
+  }
+  return cdba_sql(db, sql);
 #else
   return -1;
 #endif
@@ -501,7 +520,7 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
     free(stmt);
     return NULL;
   }
-  status = SQLPrepare(stmt->odbc_prepstat, (SQLCHAR*)sql, SQL_NTS);
+  status = SQLPrepareA(stmt->odbc_prepstat, (SQLCHAR*)sql, SQL_NTS);
   if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO) {
     cdba_set_odbc_error(db, stmt->odbc_prepstat, SQL_HANDLE_STMT);
     SQLFreeHandle(SQL_HANDLE_STMT, stmt->odbc_prepstat);
@@ -573,6 +592,8 @@ DLL_EXPORT_CDBALIB void cdba_prep_reset (cdba_prep_handle stmt)
   stmt->sqlite3_first_step_status = -1;
 #elif defined(DB_ODBC)
   stmt->odbc_first_step_status = -1;
+  SQLFreeStmt(stmt->odbc_prepstat, SQL_UNBIND);
+  SQLFreeStmt(stmt->odbc_prepstat, SQL_CLOSE);
   SQLCancel(stmt->odbc_prepstat);
 #else
 #endif
@@ -600,6 +621,8 @@ DLL_EXPORT_CDBALIB void cdba_prep_close (cdba_prep_handle stmt)
   if (stmt->odbc_bind_len)
     free(stmt->odbc_bind_len);
   if (stmt->odbc_prepstat) {
+    SQLFreeStmt(stmt->odbc_prepstat, SQL_UNBIND);
+    SQLFreeStmt(stmt->odbc_prepstat, SQL_CLOSE);
     SQLCancel(stmt->odbc_prepstat);
     SQLFreeHandle(SQL_HANDLE_STMT, stmt->odbc_prepstat);
   }
