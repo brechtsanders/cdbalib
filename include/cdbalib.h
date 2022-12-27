@@ -1,7 +1,9 @@
-/**
- * @file cdbalib.h
- * @brief CDBALIB - C database abstraction library with support for prepared statements - header file with main functions
- * @author Brecht Sanders
+/*!
+ * \file cdbalib.h
+ * \brief CDBALIB - C database abstraction library - header file with main functions
+ * \details CDBALIB is a C database abstraction library with support for prepared statements. This is the header file with the main functions.
+ * \author Brecht Sanders
+ * \copyright LGPL License
  *
  * Header file for the C database abstraction library with support for prepared statements (CDBALIB)
  */

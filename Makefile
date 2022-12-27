@@ -148,7 +148,7 @@ else
 	$(CP) $(BINDIR)*$(SOEXT) $(PREFIX)/lib/
 endif
 ifdef DOXYGEN
-	$(CPDIR) doc/generated/man $(PREFIX)/
+	$(CPDIR) doc/generated/man/* $(PREFIX)/man/
 endif
 
 
