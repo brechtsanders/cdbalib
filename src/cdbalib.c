@@ -825,6 +825,7 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
 #if defined(DB_MYSQL)
   if ((stmt->mysql_prepstat = mysql_stmt_init(db->mysql_conn)) == NULL) {
     cdba_set_error(db, "Memory allocation error");
+    free(stmt);
 	  return NULL;
   }
 	if (mysql_stmt_prepare(stmt->mysql_prepstat, sql, strlen(sql)) != 0) {
@@ -842,16 +843,19 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
   CS_INT rc;
   if ((rc = ct_cmd_alloc(db->freetds_conn, &stmt->freetds_prepstat)) != CS_SUCCEED) {
     cdba_set_error(db, "Error in ct_cmd_alloc()");
+    free(stmt);
     return -1;
   }
   if ((rc = ct_command(stmt->freetds_prepstat, CS_LANG_CMD, sql, strlen(sql), CS_END)) != CS_SUCCEED) {
     cdba_set_freetds_error(db);
     ct_cmd_drop(stmt->freetds_prepstat);
+    free(stmt);
     return -2;
   }
   if ((rc = ct_send(stmt->freetds_prepstat)) != CS_SUCCEED) {
     cdba_set_freetds_error(db);
     ct_cmd_drop(stmt->freetds_prepstat);
+    free(stmt);
     return -3;
   }
 
@@ -867,7 +871,6 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
   }
 
   ct_cmd_drop(stmt->freetds_prepstat);
-  return NULL;
 #elif defined(DB_SQLITE3)
   if (sqlite3_prepare_v2(db->sqlite3_conn, sql, -1, &(stmt->sqlite3_prepstat), NULL) != SQLITE_OK) {
     cdba_set_error(db, sqlite3_errmsg(db->sqlite3_conn));
@@ -1020,60 +1023,55 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
   MYSQL_BIND* bindarg;
   struct mysql_argbindinfo_struct* argcopy;
   //bind arguments
-  if (stmt->numargs == 0) {
-    bindarg = NULL;
-  } else {
+  bindarg = NULL;
+  if (stmt->numargs > 0) {
     if ((bindarg = (MYSQL_BIND*)malloc(sizeof(MYSQL_BIND) * stmt->numargs)) == NULL) {
       cdba_prep_set_error(stmt, "Memory allocation error");
       va_end(argp);
       return -1;
     }
-  }
-  if (stmt->numargs == 0) {
-    argcopy = NULL;
-  } else {
     if ((argcopy = (struct mysql_argbindinfo_struct*)malloc(sizeof(struct mysql_argbindinfo_struct) * stmt->numargs)) == NULL) {
       cdba_prep_set_error(stmt, "Memory allocation error");
       free(bindarg);
       va_end(argp);
       return -1;
     }
-  }
-  memset(bindarg, 0, sizeof(MYSQL_BIND) * stmt->numargs);
-  for (i = 0; i < stmt->numargs; i++) {
-    type = va_arg(argp, int);
-    switch (type) {
-      case CDBA_TYPE_NULL :
-        bindarg[i].buffer_type = MYSQL_TYPE_NULL;
-        bindarg[i].buffer = NULL;
-        break;
-      case CDBA_TYPE_INT :
-        argcopy[i].intval = (long long)va_arg(argp, db_int);
-        bindarg[i].buffer_type = MYSQL_TYPE_LONGLONG;
-        bindarg[i].buffer = &(argcopy[i].intval);
-        break;
-      case CDBA_TYPE_FLOAT :
-        argcopy[i].floatval = va_arg(argp, db_flt);
-        bindarg[i].buffer_type = MYSQL_TYPE_DOUBLE;
-        bindarg[i].buffer = &(argcopy[i].intval);
-        break;
-      case CDBA_TYPE_TEXT :
-        bindarg[i].buffer = va_arg(argp, char*);
-        if (bindarg[i].buffer) {
-          bindarg[i].buffer_type = MYSQL_TYPE_STRING;
-          bindarg[i].buffer_length = strlen(bindarg[i].buffer);
-        } else {
+    memset(bindarg, 0, sizeof(MYSQL_BIND) * stmt->numargs);
+    for (i = 0; i < stmt->numargs; i++) {
+      type = va_arg(argp, int);
+      switch (type) {
+        case CDBA_TYPE_NULL :
           bindarg[i].buffer_type = MYSQL_TYPE_NULL;
-        }
-        break;
-      default :
-        cdba_prep_set_error(stmt, "Unknown database type");
-        cdba_prep_reset(stmt);
-        va_end(argp);
-        return -1;
+          bindarg[i].buffer = NULL;
+          break;
+        case CDBA_TYPE_INT :
+          argcopy[i].intval = (long long)va_arg(argp, db_int);
+          bindarg[i].buffer_type = MYSQL_TYPE_LONGLONG;
+          bindarg[i].buffer = &(argcopy[i].intval);
+          break;
+        case CDBA_TYPE_FLOAT :
+          argcopy[i].floatval = va_arg(argp, db_flt);
+          bindarg[i].buffer_type = MYSQL_TYPE_DOUBLE;
+          bindarg[i].buffer = &(argcopy[i].intval);
+          break;
+        case CDBA_TYPE_TEXT :
+          bindarg[i].buffer = va_arg(argp, char*);
+          if (bindarg[i].buffer) {
+            bindarg[i].buffer_type = MYSQL_TYPE_STRING;
+            bindarg[i].buffer_length = strlen(bindarg[i].buffer);
+          } else {
+            bindarg[i].buffer_type = MYSQL_TYPE_NULL;
+          }
+          break;
+        default :
+          cdba_prep_set_error(stmt, "Unknown database type");
+          cdba_prep_reset(stmt);
+          va_end(argp);
+          return -1;
+      }
     }
+    mysql_stmt_bind_param(stmt->mysql_prepstat, bindarg);
   }
-  mysql_stmt_bind_param(stmt->mysql_prepstat, bindarg);
   //execute statement
   if ((status = mysql_stmt_execute(stmt->mysql_prepstat)) != 0) {
     cdba_prep_set_error(stmt, mysql_stmt_error(stmt->mysql_prepstat));
@@ -1257,6 +1255,7 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
   if (odbcstatus != SQL_SUCCESS && odbcstatus != SQL_SUCCESS_WITH_INFO) {
     cdba_set_odbc_error(stmt->db, stmt->odbc_prepstat, SQL_HANDLE_STMT);
     /////cdba_set_odbc_error(NULL, stmt->odbc_prepstat, SQL_HANDLE_STMT);
+    va_end(argp);
     return -2;
   }
   status = odbcstatus;

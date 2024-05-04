@@ -78,7 +78,7 @@
 			<Add directory="../include" />
 		</Compiler>
 		<Linker>
-			<Add option="`mysql_config.exe --libs`" />
+			<Add option="`mysql_config --libs`" />
 		</Linker>
 		<Unit filename="../include/cdbalib.h" />
 		<Unit filename="../src/cdbaconfig.c">
