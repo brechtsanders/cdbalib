@@ -1,7 +1,7 @@
 #ifndef INCLUDED_CDBACONFIG_H
 #define INCLUDED_CDBACONFIG_H
 
-#include <stdlib.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {

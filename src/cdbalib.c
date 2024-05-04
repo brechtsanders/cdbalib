@@ -283,7 +283,8 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
   }
   mysql_set_character_set(db->mysql_conn, "utf8");
   mysql_options(db->mysql_conn, MYSQL_OPT_RECONNECT, &reconnect);
-  if (mysql_real_connect(db->mysql_conn, "127.0.0.1", "p1log2db", "TOPSECRET", "p1log2db", 0, NULL, 0) == NULL) {
+  //mysql_options(db->mysql_conn, SSL_MODE_PREFERRED, );
+  if (mysql_real_connect(db->mysql_conn, cfg->host, cfg->login, cfg->password, cfg->database, cfg->port, NULL, 0) == NULL) {
     free(db);
     return NULL;
   }

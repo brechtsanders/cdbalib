@@ -1,5 +1,6 @@
 #include "cdbaconfig.h"
 #include "cdbalib.h"
+#include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <string.h>
