@@ -2,7 +2,8 @@
 #include "cdbaconfig.h"
 
 #include <stdlib.h>
-#include <stdio.h>/////
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 #if defined(DB_MYSQL)
 #ifdef _WIN32

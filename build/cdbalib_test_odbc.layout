@@ -2,6 +2,11 @@
 <CodeBlocks_layout_file>
 	<FileVersion major="1" minor="0" />
 	<ActiveTarget name="Debug64" />
+	<File name="..\include\cdbalib.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="2124" topLine="43" />
+		</Cursor>
+	</File>
 	<File name="..\src\cdbalib_test.c" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
 			<Cursor1 position="1901" topLine="47" />
@@ -10,11 +15,6 @@
 	<File name="..\src\cdbalib.c" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
 			<Cursor1 position="36839" topLine="1200" />
-		</Cursor>
-	</File>
-	<File name="..\include\cdbalib.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="2124" topLine="43" />
 		</Cursor>
 	</File>
 </CodeBlocks_layout_file>
