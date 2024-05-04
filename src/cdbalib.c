@@ -1,4 +1,5 @@
 #include "cdbalib.h"
+#include "cdbaconfig.h"
 
 #include <stdlib.h>
 #include <stdio.h>/////
@@ -16,6 +17,9 @@
 #define my_bool int
 #endif
 #endif
+#elif defined(DB_FREETDS)
+#include <cspublic.h>
+#include <ctpublic.h>
 #elif defined(DB_SQLITE3)
 #include <sqlite3.h>
 #elif defined(DB_ODBC)
@@ -38,6 +42,8 @@
 struct cdba_library_handle_struct {
   const char* drivername;
 #if defined(DB_MYSQL)
+#elif defined(DB_FREETDS)
+  CS_CONTEXT* freetds_context;
 #elif defined(DB_SQLITE3)
 #elif defined(DB_ODBC)
   SQLHENV odbc_env;
@@ -53,6 +59,16 @@ DLL_EXPORT_CDBALIB cdba_library_handle cdba_library_initialize ()
 #if defined(DB_MYSQL)
   mysql_library_init(0, NULL, NULL);
   dblib->drivername = "MySQL";
+#elif defined(DB_FREETDS)
+  if (cs_ctx_alloc(CS_VERSION_100, &dblib->freetds_context) != CS_SUCCEED) {
+    free(dblib);
+    return NULL;
+  }
+  if (ct_init(dblib->freetds_context, CS_VERSION_100) != CS_SUCCEED) {
+    free(dblib);
+    return NULL;
+  }
+  dblib->drivername = "FreeTDS";
 #elif defined(DB_SQLITE3)
   sqlite3_initialize();
   dblib->drivername = "SQLite3";
@@ -77,6 +93,9 @@ DLL_EXPORT_CDBALIB void cdba_library_cleanup (cdba_library_handle dblib)
     return;
 #if defined(DB_MYSQL)
   mysql_library_end();
+#elif defined(DB_FREETDS)
+  ct_exit(dblib->freetds_context, CS_UNUSED);
+  cs_ctx_drop(dblib->freetds_context);
 #elif defined(DB_SQLITE3)
   sqlite3_shutdown();
 #elif defined(DB_ODBC)
@@ -101,6 +120,9 @@ DLL_EXPORT_CDBALIB char* cdba_library_get_version (cdba_library_handle dblib)
   l = mysql_get_client_version();
   snprintf(buf, sizeof(buf), "%u.%u.%u", (unsigned int)(l / 10000), (unsigned int)((l / 100) % 100), (unsigned int)(l % 100));
   return strdup(buf);
+/*
+#elif defined(DB_FREETDS)
+*/
 #elif defined(DB_SQLITE3)
   return strdup(sqlite3_libversion());
 #elif defined(DB_ODBC)
@@ -132,10 +154,104 @@ DLL_EXPORT_CDBALIB char* cdba_library_get_version (cdba_library_handle dblib)
 
 ////////////////////////////////////////////////////////////////////////
 
+typedef struct cdba_config_struct* cdba_config;
+DLL_EXPORT_CDBALIB cdba_config cdba_config_from_text (const char* configtext);
+DLL_EXPORT_CDBALIB void cdba_config_cleanup (cdba_config cfg);
+
+////////////////////////////////////////////////////////////////////////
+
+struct cdba_config_struct {
+#if defined(DB_MYSQL)
+  char* host;
+  db_int port;
+  char* login;
+  char* password;
+  char* database;
+#elif defined(DB_FREETDS)
+  /////TO DO
+#elif defined(DB_SQLITE3)
+  char* file;
+#elif defined(DB_ODBC)
+  /////TO DO
+#else
+#endif
+};
+
+struct cdba_config_settings_mapping_struct cdba_config_mapping[] = {
+#if defined(DB_MYSQL)
+  {"host",     offsetof(struct cdba_config_struct, host),     cfg_txt},
+  {"port",     offsetof(struct cdba_config_struct, port),     cfg_int},
+  {"login",    offsetof(struct cdba_config_struct, login),    cfg_txt},
+  {"password", offsetof(struct cdba_config_struct, password), cfg_txt},
+  {"database", offsetof(struct cdba_config_struct, database), cfg_txt},
+#elif defined(DB_SQLITE3)
+  {"file",     offsetof(struct cdba_config_struct, file),     cfg_txt},
+#elif defined(DB_ODBC)
+  /////TO DO
+#else
+#endif
+  {NULL, 0, 0}
+};
+
+cdba_config cdba_config_initialize ()
+{
+  struct cdba_config_struct* cfg;
+  if ((cfg = (struct cdba_config_struct*)malloc(sizeof(struct cdba_config_struct))) == NULL)
+    return NULL;
+#if defined(DB_MYSQL)
+  cfg->host = NULL;
+  cfg->port = 0;
+  cfg->login = NULL;
+  cfg->password = NULL;
+  cfg->database = NULL;
+#elif defined(DB_FREETDS)
+  /////TO DO
+#elif defined(DB_SQLITE3)
+  cfg->file = NULL;
+#elif defined(DB_ODBC)
+  /////TO DO
+#else
+#endif
+  return cfg;
+}
+
+DLL_EXPORT_CDBALIB cdba_config cdba_config_from_text (const char* configtext)
+{
+  struct cdba_config_struct* cfg;
+  if ((cfg = cdba_config_initialize()) == NULL)
+    return NULL;
+  if (cdba_config_parse(cfg, configtext, cdba_config_mapping) != NULL) {
+    cdba_config_cleanup(cfg);
+    return NULL;
+  }
+  return cfg;
+}
+
+DLL_EXPORT_CDBALIB void cdba_config_cleanup (cdba_config cfg)
+{
+#if defined(DB_MYSQL)
+  free(cfg->host);
+  free(cfg->login);
+  free(cfg->password);
+  free(cfg->database);
+#elif defined(DB_FREETDS)
+  /////TO DO
+#elif defined(DB_SQLITE3)
+  free(cfg->file);
+#elif defined(DB_ODBC)
+  /////TO DO
+#else
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////
+
 struct cdba_handle_struct
 {
 #if defined(DB_MYSQL)
   MYSQL* mysql_conn;
+#elif defined(DB_FREETDS)
+  CS_CONNECTION* freetds_conn;
 #elif defined(DB_SQLITE3)
   sqlite3* sqlite3_conn;
 #elif defined(DB_ODBC)
@@ -146,13 +262,18 @@ struct cdba_handle_struct
   char* errmsg;
 };
 
-DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char* path)
+DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char* configtext)
 {
+  struct cdba_config_struct* cfg;
   struct cdba_handle_struct* db;
   if (!dblib)
     return NULL;
-  if ((db = (struct cdba_handle_struct*)malloc(sizeof(struct cdba_handle_struct))) == NULL)
+  if ((cfg = cdba_config_from_text(configtext)) == NULL)
     return NULL;
+  if ((db = (struct cdba_handle_struct*)malloc(sizeof(struct cdba_handle_struct))) == NULL) {
+    cdba_config_cleanup(cfg);
+    return NULL;
+  }
   db->errmsg = NULL;
 #if defined(DB_MYSQL)
   my_bool reconnect = 1;
@@ -166,8 +287,67 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
     free(db);
     return NULL;
   }
+#elif defined(DB_FREETDS)
+#define FREETDS_HOST "10.0.0.232"
+//#define FREETDS_INST "SQL2016P001"
+#define FREETDS_PORT 1433
+#define FREETDS_USER "testuser"
+#define FREETDS_PASS "T0P_SECRET"
+#define FREETDS_DBNAME "testdb"
+  CS_INT rc;
+  if ((rc = ct_con_alloc(dblib->freetds_context, &db->freetds_conn)) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+  if ((rc = ct_con_props(db->freetds_conn, CS_SET, CS_USERNAME, (CS_CHAR*)FREETDS_USER, strlen(FREETDS_USER), 0)) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+  if ((rc = ct_con_props(db->freetds_conn, CS_SET, CS_PASSWORD, (CS_CHAR*)FREETDS_PASS, strlen(FREETDS_PASS), 0)) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+#ifdef DB_SET_APP
+  if ((rc = ct_con_props(db->freetds_conn, CS_SET, CS_APPNAME,(CS_VOID*)progname, strlen(progname), 0)) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+#endif
+#ifdef FREETDS_DBNAME
+  if ((rc = ct_con_props(db->freetds_conn, CS_SET, CS_DATABASE, FREETDS_DBNAME, strlen(FREETDS_DBNAME), 0)) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+#endif
+#ifndef FREETDS_INST
+  CS_INT port = (FREETDS_PORT ? FREETDS_PORT : 1433);
+  if ((rc = ct_con_props(db->freetds_conn, CS_SET, CS_PORT, &port, sizeof(port), 0)) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+  if ((rc = ct_connect(db->freetds_conn, (CS_CHAR*)FREETDS_HOST, strlen(FREETDS_HOST))) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+  ct_diag(db->freetds_conn, CS_INIT, CS_ALLMSG_TYPE, 0, NULL);
+
+#else
+  char* dbhostinstance;
+  if ((dbhostinstance = (char*)malloc(strlen(FREETDS_HOST) + strlen(FREETDS_INST) + 2)) == NULL) {
+    free(db);
+    return NULL;
+  }
+  strcpy(dbhostinstance, FREETDS_HOST);
+  strcat(dbhostinstance, "\\");
+  strcat(dbhostinstance, FREETDS_INST);
+  if ((rc = ct_connect(db->freetds_conn, dbhostinstance, strlen(dbhostinstance))) != CS_SUCCEED) {
+    free(db);
+    return NULL;
+  }
+  free(dbhostinstance);
+#endif
 #elif defined(DB_SQLITE3)
-  if (sqlite3_open(path, &db->sqlite3_conn) != SQLITE_OK) {
+  if (sqlite3_open(cfg->file, &db->sqlite3_conn) != SQLITE_OK) {
     free(db);
     return NULL;
   }
@@ -196,6 +376,7 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
   free(db);
   db = NULL;
 #endif
+  cdba_config_cleanup(cfg);
   return db;
 }
 
@@ -207,6 +388,8 @@ DLL_EXPORT_CDBALIB void cdba_close (cdba_handle db)
     free(db->errmsg);
 #if defined(DB_MYSQL)
   mysql_close(db->mysql_conn);
+#elif defined(DB_FREETDS)
+  ct_close(db->freetds_conn, CS_UNUSED);
 #elif defined(DB_SQLITE3)
   sqlite3_close(db->sqlite3_conn);
 #elif defined(DB_ODBC)
@@ -225,6 +408,22 @@ DLL_EXPORT_CDBALIB void cdba_set_error (cdba_handle db, const char* errmsg)
     free(db->errmsg);
   db->errmsg = (errmsg ? strdup(errmsg) : NULL);
 }
+
+#if defined(DB_FREETDS)
+void cdba_set_freetds_error (cdba_handle db)
+{
+  CS_CLIENTMSG client_errmsg;
+  CS_SERVERMSG server_errmsg;
+  if (ct_diag(db->freetds_conn, CS_GET, CS_CLIENTMSG_TYPE, 1, &client_errmsg) == CS_SUCCEED) {
+    cdba_set_error(db, client_errmsg.msgstring);
+  } else if (ct_diag(db->freetds_conn, CS_GET, CS_SERVERMSG_TYPE, 1, &server_errmsg) == CS_SUCCEED) {
+    cdba_set_error(db, server_errmsg.text);
+  } else {
+    cdba_set_error(db, "FreeTDS database error");
+  }
+  ct_diag(db->freetds_conn, CS_CLEAR, CS_ALLMSG_TYPE, 0, NULL);
+}
+#endif
 
 #if defined(DB_ODBC)
 void cdba_set_odbc_error (cdba_handle db, SQLHSTMT stmt, SQLSMALLINT handletype)
@@ -271,6 +470,8 @@ DLL_EXPORT_CDBALIB int cdba_sql (cdba_handle db, const char* sql)
   res = mysql_use_result(db->mysql_conn);
   mysql_free_result(res);
   return 0;
+#elif defined(DB_FREETDS)
+  return cdba_sql_with_length(db, sql, (sql ? strlen(sql) : 0));
 #elif defined(DB_SQLITE3)
   int status;
   int i;
@@ -317,6 +518,95 @@ DLL_EXPORT_CDBALIB int cdba_sql (cdba_handle db, const char* sql)
 #endif
 }
 
+DLL_EXPORT_CDBALIB int cdba_sql_with_length (cdba_handle db, const char* sql, size_t sqllen)
+{
+#if defined(DB_MYSQL)
+  int status;
+  MYSQL_RES* res;
+  if ((status = mysql_real_query(db->mysql_conn, sql, sqllen)) != 0) {
+    cdba_set_error(db, mysql_error(db->mysql_conn));
+    return -1;
+  }
+  res = mysql_use_result(db->mysql_conn);
+  mysql_free_result(res);
+  return 0;
+#elif defined(DB_FREETDS)
+  CS_INT rc;
+  CS_COMMAND* stmt;
+  if ((rc = ct_cmd_alloc(db->freetds_conn, &stmt)) != CS_SUCCEED) {
+    cdba_set_error(db, "Error in ct_cmd_alloc()");
+    return -1;
+  }
+  if ((rc = ct_command(stmt, CS_LANG_CMD, sql, sqllen, CS_END)) != CS_SUCCEED) {
+    cdba_set_freetds_error(db);
+    ct_cmd_drop(stmt);
+    return -2;
+  }
+  if ((rc = ct_send(stmt)) != CS_SUCCEED) {
+    cdba_set_freetds_error(db);
+    ct_cmd_drop(stmt);
+    return -3;
+  }
+
+  //ct_cancel(db->freetds_conn, stmt, CS_CANCEL_CURRENT);
+  //ct_cancel(db->freetds_conn, stmt, CS_CANCEL_ATTN);
+  //ct_cancel(db->freetds_conn, stmt, CS_CANCEL_ALL);
+
+  CS_INT res_type;
+  CS_INT rows_read;
+  while (ct_results(stmt, &res_type) == CS_SUCCEED) {
+    if (res_type == CS_ROW_RESULT)
+      ct_fetch(stmt, CS_UNUSED, CS_UNUSED, CS_UNUSED, &rows_read);
+  }
+
+  ct_cmd_drop(stmt);
+  return 0;
+#elif defined(DB_SQLITE3)
+  int status;
+  int i;
+  const char* sqlnext;
+  sqlite3_stmt* stmt;
+	if ((status = sqlite3_prepare_v2(db->sqlite3_conn, sql, sqllen, &stmt, &sqlnext)) != SQLITE_OK) {
+    cdba_set_error(db, sqlite3_errmsg(db->sqlite3_conn));
+	  return -2;
+	}
+	if (sqlnext && *sqlnext) {
+    cdba_set_error(db, "not a single SQL statement");
+    sqlite3_finalize(stmt);
+	  return -3;
+	}
+  status = SQLITE_ERROR;
+  i = 0;
+  while (i++ < RETRY_ATTEMPTS && ((status = sqlite3_step(stmt)) == SQLITE_BUSY || status == SQLITE_LOCKED)) {
+    WAIT_BEFORE_RETRY(RETRY_WAIT_TIME)
+  }
+  sqlite3_finalize(stmt);
+  if (status != SQLITE_DONE && status != SQLITE_ROW) {
+    cdba_set_error(db, sqlite3_errmsg(db->sqlite3_conn));
+    return -1;
+  }
+  return 0;
+#elif defined(DB_ODBC)
+  SQLHDBC stmt;
+  SQLRETURN status;
+  if (SQLAllocHandle(SQL_HANDLE_STMT, db->odbc_conn, &stmt) != SQL_SUCCESS) {
+    cdba_set_error(db, "SQLAllocHandle() failed");
+    /////TO DO: cdba_set_error(db, ???);
+    return -1;
+  }
+  status = SQLExecDirectA(stmt, (SQLCHAR*)sql, sqllen);
+  if (status != SQL_SUCCESS && status != SQL_SUCCESS_WITH_INFO) {
+    cdba_set_odbc_error(db, stmt, SQL_HANDLE_STMT);
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+    return -1;
+  }
+  SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+  return 0;
+#else
+  return -1;
+#endif
+}
+
 DLL_EXPORT_CDBALIB int cdba_multiple_sql (cdba_handle db, const char* sql)
 {
 #if defined(DB_MYSQL)
@@ -332,6 +622,9 @@ DLL_EXPORT_CDBALIB int cdba_multiple_sql (cdba_handle db, const char* sql)
   }
   mysql_set_server_option(db->mysql_conn, MYSQL_OPTION_MULTI_STATEMENTS_OFF);
   return status;
+/*
+#elif defined(DB_FREETDS)
+*/
 #elif defined(DB_SQLITE3)
   int status;
   int i;
@@ -359,6 +652,7 @@ DLL_EXPORT_CDBALIB int cdba_multiple_sql (cdba_handle db, const char* sql)
     }
   }
   return 0;
+/*
 #elif defined(DB_ODBC)
   SQLRETURN status;
   SQLUINTEGER batchsupport;
@@ -372,8 +666,44 @@ DLL_EXPORT_CDBALIB int cdba_multiple_sql (cdba_handle db, const char* sql)
     }
   }
   return cdba_sql(db, sql);
+*/
 #else
-  return -1;
+  int status;
+  const char* p;
+  const char* q;
+  size_t inbrackets = 0;
+  size_t insinglequotes = 0;
+  p = sql;
+  //loop through queries
+  while (p && *p) {
+    //skip spaces
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+      p++;
+    q = p;
+    //find next semicolon or end
+    while (*q) {
+      if (*q == '\'') {
+        insinglequotes = ~insinglequotes;
+      } else if (!insinglequotes) {
+        if (*q == '(') {
+          inbrackets++;
+        } else if (inbrackets > 0 && *q == ')') {
+          inbrackets--;
+        } else if (*q == ';') {
+          break;
+        }
+      }
+      q++;
+    }
+    if (!*q || *q == ';') {
+      if ((status = cdba_sql_with_length(db, p, q - p)) != 0)
+        return status;
+      if (*q)
+        q++;
+      p = q;
+    }
+  }
+  return 0;
 #endif
 }
 
@@ -382,6 +712,7 @@ DLL_EXPORT_CDBALIB void cdba_begin_transaction (cdba_handle db)
 /*
 #if defined(DB_MYSQL)
   mysql_autocommit(db->sqlite3_conn, 0);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
 #elif defined(DB_ODBC)
 #else
@@ -400,6 +731,7 @@ DLL_EXPORT_CDBALIB void cdba_commit_transaction (cdba_handle db)
 #if defined(DB_MYSQL)
   mysql_commit(db->sqlite3_conn, 0);
   mysql_autocommit(db->sqlite3_conn, 1);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
 #elif defined(DB_ODBC)
 #else
@@ -419,6 +751,7 @@ DLL_EXPORT_CDBALIB void cdba_rollback_transaction (cdba_handle db)
 #if defined(DB_MYSQL)
   mysql_rollback(db->sqlite3_conn, 0);
   mysql_autocommit(db->sqlite3_conn, 1);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
 #else
 #endif
@@ -452,6 +785,8 @@ struct cdba_prep_handle_struct {
   union {
 #if defined(DB_MYSQL)
     MYSQL_STMT* mysql_prepstat;
+#elif defined(DB_FREETDS)
+    CS_COMMAND* freetds_prepstat;
 #elif defined(DB_SQLITE3)
     sqlite3_stmt* sqlite3_prepstat;
 #elif defined(DB_ODBC)
@@ -464,12 +799,12 @@ struct cdba_prep_handle_struct {
   MYSQL_RES* mysql_result_metadata;
   MYSQL_BIND* mysql_bind_result;
   struct mysql_resultbindinfo_struct* mysql_bind_vars;
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   int sqlite3_first_step_status;
 #elif defined(DB_ODBC)
   cdba_handle db;
   SQLLEN* odbc_bind_len;
-  int odbc_first_step_status;
 #else
 #endif
   int numargs;
@@ -502,6 +837,36 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
   stmt->mysql_bind_vars = NULL;
   stmt->numargs = mysql_stmt_param_count(stmt->mysql_prepstat);
   stmt->numcols = mysql_stmt_field_count(stmt->mysql_prepstat);
+#elif defined(DB_FREETDS)
+  CS_INT rc;
+  if ((rc = ct_cmd_alloc(db->freetds_conn, &stmt->freetds_prepstat)) != CS_SUCCEED) {
+    cdba_set_error(db, "Error in ct_cmd_alloc()");
+    return -1;
+  }
+  if ((rc = ct_command(stmt->freetds_prepstat, CS_LANG_CMD, sql, strlen(sql), CS_END)) != CS_SUCCEED) {
+    cdba_set_freetds_error(db);
+    ct_cmd_drop(stmt->freetds_prepstat);
+    return -2;
+  }
+  if ((rc = ct_send(stmt->freetds_prepstat)) != CS_SUCCEED) {
+    cdba_set_freetds_error(db);
+    ct_cmd_drop(stmt->freetds_prepstat);
+    return -3;
+  }
+
+  //ct_cancel(db->freetds_conn, stmt->freetds_prepstat, CS_CANCEL_CURRENT);
+  //ct_cancel(db->freetds_conn, stmt->freetds_prepstat, CS_CANCEL_ATTN);
+  //ct_cancel(db->freetds_conn, stmt->freetds_prepstat, CS_CANCEL_ALL);
+
+  CS_INT res_type;
+  CS_INT rows_read;
+  while (ct_results(stmt->freetds_prepstat, &res_type) == CS_SUCCEED) {
+    if (res_type == CS_ROW_RESULT)
+      ct_fetch(stmt->freetds_prepstat, CS_UNUSED, CS_UNUSED, CS_UNUSED, &rows_read);
+  }
+
+  ct_cmd_drop(stmt->freetds_prepstat);
+  return NULL;
 #elif defined(DB_SQLITE3)
   if (sqlite3_prepare_v2(db->sqlite3_conn, sql, -1, &(stmt->sqlite3_prepstat), NULL) != SQLITE_OK) {
     cdba_set_error(db, sqlite3_errmsg(db->sqlite3_conn));
@@ -537,7 +902,6 @@ DLL_EXPORT_CDBALIB cdba_prep_handle cdba_create_preparedstatement (cdba_handle d
   }
 */
   stmt->db = db;
-  stmt->odbc_first_step_status = -1;
   stmt->numargs = -1;
   status = SQLNumParams(stmt->odbc_prepstat, &n);
   if (status == SQL_SUCCESS || status == SQL_SUCCESS_WITH_INFO)
@@ -586,12 +950,12 @@ DLL_EXPORT_CDBALIB void cdba_prep_reset (cdba_prep_handle stmt)
     free(stmt->mysql_bind_vars);
     stmt->mysql_bind_vars = NULL;
   }
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   sqlite3_reset(stmt->sqlite3_prepstat);
   sqlite3_clear_bindings(stmt->sqlite3_prepstat);
   stmt->sqlite3_first_step_status = -1;
 #elif defined(DB_ODBC)
-  stmt->odbc_first_step_status = -1;
   SQLFreeStmt(stmt->odbc_prepstat, SQL_UNBIND);
   SQLFreeStmt(stmt->odbc_prepstat, SQL_CLOSE);
   SQLCancel(stmt->odbc_prepstat);
@@ -614,6 +978,7 @@ DLL_EXPORT_CDBALIB void cdba_prep_close (cdba_prep_handle stmt)
     free(stmt->mysql_bind_result);
   if (stmt->mysql_bind_vars)
     free(stmt->mysql_bind_vars);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   if (stmt->sqlite3_prepstat)
     sqlite3_finalize(stmt->sqlite3_prepstat);
@@ -793,6 +1158,7 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
     free(bindarg);
   if (argcopy)
     free(argcopy);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   //bind arguments
   for (i = 0; i < stmt->numargs; i++) {
@@ -885,16 +1251,13 @@ DLL_EXPORT_CDBALIB int cdba_prep_execute (cdba_prep_handle stmt, ...)
         va_end(argp);
         return -1;
     }
-printf("odbcstatus[%i](type:%i): %i\n", (int)i, (int)type, (int)odbcstatus);/////
   }
   odbcstatus = SQLExecute(stmt->odbc_prepstat);
-printf("odbcstatus: %i\n", (int)odbcstatus);/////
   if (odbcstatus != SQL_SUCCESS && odbcstatus != SQL_SUCCESS_WITH_INFO) {
     cdba_set_odbc_error(stmt->db, stmt->odbc_prepstat, SQL_HANDLE_STMT);
     /////cdba_set_odbc_error(NULL, stmt->odbc_prepstat, SQL_HANDLE_STMT);
     return -2;
   }
-  stmt->odbc_first_step_status = 1;
   status = odbcstatus;
 #else
 #endif
@@ -906,6 +1269,7 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_rows_affected (cdba_prep_handle stmt)
 {
 #if defined(DB_MYSQL)
   return mysql_stmt_affected_rows(stmt->mysql_prepstat);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   return sqlite3_changes(sqlite3_db_handle(stmt->sqlite3_prepstat));
 #elif defined(DB_ODBC)
@@ -920,6 +1284,7 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_insert_id (cdba_prep_handle stmt)
 {
 #if defined(DB_MYSQL)
   return mysql_stmt_insert_id(stmt->mysql_prepstat);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   return sqlite3_last_insert_rowid(sqlite3_db_handle(stmt->sqlite3_prepstat));
 #elif defined(DB_ODBC)
@@ -935,6 +1300,7 @@ DLL_EXPORT_CDBALIB int cdba_prep_fetch_row (cdba_prep_handle stmt)
 	if (status == 0 || status == MYSQL_DATA_TRUNCATED)
     return 1;
   return (status == MYSQL_NO_DATA ? 0 : -1);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   int status;
   int i;
@@ -952,10 +1318,6 @@ DLL_EXPORT_CDBALIB int cdba_prep_fetch_row (cdba_prep_handle stmt)
     return 1;
   return (status == SQLITE_DONE || status == SQLITE_OK ? 0 : -1);
 #elif defined(DB_ODBC)
-  if (stmt->odbc_first_step_status == 1) {
-    stmt->odbc_first_step_status = 0;       /////TO DO: what id query returns no results?
-    return 1;
-  }
   SQLRETURN status;
   status = SQLFetch(stmt->odbc_prepstat);
   return (status == SQL_SUCCESS || status == SQL_SUCCESS_WITH_INFO ? 1 : 0);
@@ -1007,6 +1369,7 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_column_type (cdba_prep_handle stmt, int 
     default :
       return CDBA_TYPE_NULL;
   }
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   int type;
   type = sqlite3_column_type(stmt->sqlite3_prepstat, col);
@@ -1078,6 +1441,7 @@ DLL_EXPORT_CDBALIB char* cdba_prep_get_column_name (cdba_prep_handle stmt, int c
 #if defined(DB_MYSQL)
   const char* colname = stmt->mysql_result_metadata->fields[col].name;
   return (colname ? strdup(colname) : NULL);
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   const char* colname = sqlite3_column_name(stmt->sqlite3_prepstat, col);
   return (colname ? strdup(colname) : NULL);
@@ -1114,6 +1478,7 @@ DLL_EXPORT_CDBALIB db_int cdba_prep_get_column_int (cdba_prep_handle stmt, int c
   if (mysql_stmt_fetch_column(stmt->mysql_prepstat, &bindarg, col, 0) != 0)
     return 0;
   return result;
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   return sqlite3_column_int64(stmt->sqlite3_prepstat, col);
 #elif defined(DB_ODBC)
@@ -1140,6 +1505,7 @@ DLL_EXPORT_CDBALIB double cdba_prep_get_column_float (cdba_prep_handle stmt, int
   if (mysql_stmt_fetch_column(stmt->mysql_prepstat, &bindarg, col, 0) != 0)
     return 0;
   return result;
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   return sqlite3_column_double(stmt->sqlite3_prepstat, col);
 #elif defined(DB_ODBC)
@@ -1176,6 +1542,7 @@ DLL_EXPORT_CDBALIB char* cdba_prep_get_column_text (cdba_prep_handle stmt, int c
     return NULL;
   }
   //result[stmt->mysql_bind_vars[col].length] = 0;
+#elif defined(DB_FREETDS)
 #elif defined(DB_SQLITE3)
   if ((result = (char*)sqlite3_column_text(stmt->sqlite3_prepstat, col)) != NULL)
     result = strdup(result);

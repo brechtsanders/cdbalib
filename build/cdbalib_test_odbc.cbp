@@ -80,6 +80,10 @@
 			<Add library="odbc32" />
 		</Linker>
 		<Unit filename="../include/cdbalib.h" />
+		<Unit filename="../src/cdbaconfig.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../src/cdbaconfig.h" />
 		<Unit filename="../src/cdbalib.c">
 			<Option compilerVar="CC" />
 		</Unit>

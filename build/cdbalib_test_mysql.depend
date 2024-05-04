@@ -1,17 +1,20 @@
 # depslib dependency file v1.0
-1671315444 source:z:\cdbalib\src\cdbalib.c
+1714835973 source:z:\cdbalib\src\cdbalib.c
 	"cdbalib.h"
+	"cdbaconfig.h"
 	<stdlib.h>
 	<stdio.h>
 	<string.h>
 	<mariadb/mysql.h>
 	<mysql.h>
+	<cspublic.h>
+	<ctpublic.h>
 	<sqlite3.h>
 	<odbcinst.h>
 	<windows.h>
 	<unistd.h>
 
-1671653403 z:\cdbalib\include\cdbalib.h
+1714836097 z:\cdbalib\include\cdbalib.h
 	<stdint.h>
 	<stdarg.h>
 
@@ -36,8 +39,20 @@
 
 1669410877 d:\prog\winlibs64-11.3.0msvcrt\custombuilt\include\mariadb\mariadb_stmt.h
 
-1671654047 source:z:\cdbalib\src\cdbalib_test.c
+1714836147 source:z:\cdbalib\src\cdbalib_test.c
+	"cdbaconfig.h"
 	"cdbalib.h"
 	<stdlib.h>
 	<stdio.h>
+
+1714834787 source:z:\cdbalib\src\cdbaconfig.c
+	"cdbaconfig.h"
+	"cdbalib.h"
+	<stdint.h>
+	<inttypes.h>
+	<string.h>
+	<ctype.h>
+
+1714833020 z:\cdbalib\src\cdbaconfig.h
+	<stdlib.h>
 

@@ -65,12 +65,12 @@ endif
 SQLITE3_CFLAGS = -DDB_SQLITE3 $(shell $(PKGCONFIG) --cflags sqlite3)
 SQLITE3_LIBS = $(shell $(PKGCONFIG) --libs sqlite3)
 MYSQL_CFLAGS = -DDB_MYSQL $(shell $(MYSQLCONFIG) --cflags)
-MYSQL_LIBS = -DDB_ODBC $(shell $(MYSQLCONFIG) --libs)
+MYSQL_LIBS = $(shell $(MYSQLCONFIG) --libs)
 ifeq ($(OS),Windows_NT)
-ODBC_CFLAGS = 
+ODBC_CFLAGS = -DDB_ODBC 
 ODBC_LIBS = -lodbc32
 else
-ODBC_CFLAGS = 
+ODBC_CFLAGS = -DDB_ODBC
 ODBC_LIBS = 
 endif
 
@@ -84,7 +84,7 @@ BINDIR =
 
 default: all
 
-all: static-libs shared-libs
+all: static-libs shared-libs pkg-config-files
 
 static-libs: $(BINDIR)libcdba-sqlite3$(LIBEXT) $(BINDIR)libcdba-mysql$(LIBEXT) $(BINDIR)libcdba-odbc$(LIBEXT)
 
@@ -130,6 +130,61 @@ $(BINDIR)libcdba-odbc$(SOEXT): $(OBJDIR)libcdba-odbc-shared.o
 	$(CC) -o $@ $(OS_LINK_FLAGS) $^ $(SHARED_LDFLAGS) $(LDFLAGS) $(ODBC_LIBS) $(LIBS)
 
 
+.PHONY: pkg-config-files
+pkg-config-files: cdbalib-sqlite3.pc cdbalib-mysql.pc cdbalib-odbc.pc
+
+
+define CDBALIB_SQLITE3_PC
+prefix=$(PREFIX)
+exec_prefix=$${prefix}
+includedir=$${prefix}/include
+libdir=$${exec_prefix}/lib
+
+Name: CDBALIB SQLite3
+Description: CDBALIB - C database abstraction library with support for prepared statements - SQLite3 library
+Version: $(shell cat version)
+Cflags: -I$${includedir} $(SQLITE3_CFLAGS)
+Libs: -L$${libdir} -lcdbalib-sqlite3 $(SQLITE3_LIBS)
+endef
+
+$(OBJDIR)cdbalib-sqlite3.pc: version
+	$(file > $@,$(CDBALIB_SQLITE3_PC))
+
+
+define CDBALIB_MYSQL_PC
+prefix=$(PREFIX)
+exec_prefix=$${prefix}
+includedir=$${prefix}/include
+libdir=$${exec_prefix}/lib
+
+Name: CDBALIB MySQL
+Description: CDBALIB - C database abstraction library with support for prepared statements - MySQL library
+Version: $(shell cat version)
+Cflags: -I$${includedir} $(MYSQL_CFLAGS)
+Libs: -L$${libdir} -lcdbalib-mysql $(MYSQL_LIBS)
+endef
+
+
+$(OBJDIR)cdbalib-mysql.pc: version
+	$(file > $@,$(CDBALIB_MYSQL_PC))
+
+define CDBALIB_ODBC_PC
+prefix=$(PREFIX)
+exec_prefix=$${prefix}
+includedir=$${prefix}/include
+libdir=$${exec_prefix}/lib
+
+Name: CDBALIB ODBC
+Description: CDBALIB - C database abstraction library with support for prepared statements - ODBC library
+Version: $(shell cat version)
+Cflags: -I$${includedir} $(ODBC_CFLAGS)
+Libs: -L$${libdir} -lcdbalib-odbc $(ODBC_LIBS)
+endef
+
+$(OBJDIR)cdbalib-odbc.pc: version
+	$(file > $@,$(CDBALIB_ODBC_PC))
+
+
 .PHONY: doc
 doc:
 ifdef DOXYGEN
@@ -137,9 +192,10 @@ ifdef DOXYGEN
 endif
 
 install: all doc
-	$(MKDIR) $(PREFIX)/include $(PREFIX)/lib $(PREFIX)/bin
+	$(MKDIR) $(PREFIX)/include $(PREFIX)/lib/pkgconfig $(PREFIX)/bin
 	$(CP) include/*.h $(PREFIX)/include/
 	$(CP) $(BINDIR)*$(LIBEXT) $(PREFIX)/lib/
+	$(CP) $(OBJDIR)*.pc $(PREFIX)/lib/pkgconfig/
 	#$(CP) $(UTILS_BIN) $(PREFIX)/bin/
 ifeq ($(OS),Windows_NT)
 	$(CP) $(BINDIR)*$(SOEXT) $(PREFIX)/bin/
@@ -176,7 +232,7 @@ endif
 
 .PHONY: clean
 clean:
-	$(RM) $(OBJDIR)*.o $(BINDIR)*$(LIBEXT) $(BINDIR)*$(SOEXT) $(BINDIR)*.def $(UTILS_BIN) version cdbalib-*.tar.xz doc/doxygen_sqlite3.db
+	$(RM) $(OBJDIR)*.o $(OBJDIR)*.pc $(BINDIR)*$(LIBEXT) $(BINDIR)*$(SOEXT) $(BINDIR)*.def $(UTILS_BIN) version cdbalib-*.tar.xz doc/doxygen_sqlite3.db
 ifeq ($(OS),Windows_NT)
 	$(RM) *.def
 endif

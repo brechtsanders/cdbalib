@@ -1,46 +1,45 @@
+#include "cdbaconfig.h"
 #include "cdbalib.h"
 #include <stdlib.h>
 #include <stdio.h>
 
 void print_row (cdba_prep_handle stmt, int cols)
 {
-  while (cdba_prep_fetch_row(stmt) > 0) {
-    printf("row:\t");
-    for (int i = 0; i < cols; i++) {
-      if (i > 0)
-        printf("\t");
-      switch (cdba_prep_get_column_type(stmt, i)) {
-        case CDBA_TYPE_INT :
-          {
-            db_int val = cdba_prep_get_column_int(stmt, i);
-            printf("%li", (long)val);
+  printf("row:\t");
+  for (int i = 0; i < cols; i++) {
+    if (i > 0)
+      printf("\t");
+    switch (cdba_prep_get_column_type(stmt, i)) {
+      case CDBA_TYPE_INT :
+        {
+          db_int val = cdba_prep_get_column_int(stmt, i);
+          printf("%li", (long)val);
+        }
+        break;
+      case CDBA_TYPE_FLOAT :
+        {
+          double val = cdba_prep_get_column_float(stmt, i);
+          printf("%f", val);
+        }
+        break;
+      case CDBA_TYPE_TEXT :
+        {
+          char* val = cdba_prep_get_column_text(stmt, i);
+          if (!val) {
+            printf("NULL");
+          } else {
+            printf("%s", val);
+            cdba_free(val);
           }
-          break;
-        case CDBA_TYPE_FLOAT :
-          {
-            double val = cdba_prep_get_column_float(stmt, i);
-            printf("%f", val);
-          }
-          break;
-        case CDBA_TYPE_TEXT :
-          {
-            char* val = cdba_prep_get_column_text(stmt, i);
-            if (!val) {
-              printf("NULL");
-            } else {
-              printf("%s", val);
-              cdba_free(val);
-            }
-          }
-          break;
-        case CDBA_TYPE_NULL :
-          printf("NULL");
-        default :
-          break;
-      }
+        }
+        break;
+      case CDBA_TYPE_NULL :
+        printf("NULL");
+      default :
+        break;
     }
-    printf("\n");
   }
+  printf("\n");
 }
 
 int main (int argc, char *argv[], char *envp[])
@@ -62,8 +61,17 @@ int main (int argc, char *argv[], char *envp[])
   printf("Database driver version: %s\n", (s ? s : "(unknown)"));
   free(s);
 
-  if ((db = cdba_open(dblib, "cdbalist_test.sq3")) == NULL) {
-    fprintf(stderr, "Error opening database\n");
+#if defined(DB_MYSQL)
+  if ((db = cdba_open(dblib, "host=127.0.0.1;port=3306;login=p1log2db;password=TOPSECRET;database=p1log2db")) == NULL) {
+#elif defined(DB_FREETDS)
+  if ((db = cdba_open(dblib, /*TODO*/)) == NULL) {
+#elif defined(DB_SQLITE3)
+  if ((db = cdba_open(dblib, "file=cdbalist_test.sq3")) == NULL) {
+#elif defined(DB_ODBC)
+  if ((db = cdba_open(dblib, /*TODO*/)) == NULL) {
+#else
+#endif
+    fprintf(stderr, "Error opening %s database\n", cdba_library_get_name(dblib));
     return 1;
   }
 
@@ -83,12 +91,14 @@ int main (int argc, char *argv[], char *envp[])
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
 
-  if (cdba_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (1,1.001,'Test 1')") != 0) {
+  if (cdba_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (1,1.01,'Test 1')") != 0) {
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
-  if (cdba_multiple_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (2,2.002,'Test 2');"
-                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (3,3.0003,'Test 3');"
-                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (4,4.00004,'Test 4');"
+  if (cdba_sql_with_length(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (2,2.002,'Test 2')", 66) != 0) {
+    fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
+  }
+  if (cdba_multiple_sql(db, "INSERT INTO test1 (intval,fltval,txtval) VALUES (3,3.0003,'Test 3');"
+                            "INSERT INTO test1 (intval,fltval,txtval) VALUES (4,4.00004,NULL);"
   ) != 0) {
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
@@ -99,7 +109,7 @@ int main (int argc, char *argv[], char *envp[])
   }
 */
 
-  if (cdba_multiple_sql(db, "SELECT 1; SELECT 2; ") != 0) {
+  if (cdba_multiple_sql(db, "SELECT 1; SELECT 2 ") != 0) {
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
 
@@ -160,12 +170,11 @@ int main (int argc, char *argv[], char *envp[])
 
   }
 
+  cdba_prep_close(stmt);
 
   if (cdba_sql(db, "DROP TABLE test1") != 0) {
     fprintf(stderr, "Error executing query: %s\n", cdba_get_error(db));
   }
-
-  cdba_prep_close(stmt);
 
   cdba_commit_transaction(db);
 

@@ -2,4 +2,5 @@
 <CodeBlocks_workspace_layout_file>
 	<FileVersion major="1" minor="0" />
 	<ActiveProject path="cdbalib_test_odbc.cbp" />
+	<PreferredTarget name="Debug64" />
 </CodeBlocks_workspace_layout_file>

@@ -1,0 +1,6 @@
+.svn/
+build/bin/
+build/obj/
+build/cdbalist_test.sq3
+*.zip
+*.URL

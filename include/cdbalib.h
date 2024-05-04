@@ -1,6 +1,6 @@
 /*!
  * \file cdbalib.h
- * \brief CDBALIB - C database abstraction library - header file with main functions
+ * \brief CDBALIB - C database abstraction library with support for prepared statements - header file with main functions
  * \details CDBALIB is a C database abstraction library with support for prepared statements. This is the header file with the main functions.
  * \author Brecht Sanders
  * \copyright LGPL License
@@ -105,7 +105,7 @@ typedef struct cdba_handle_struct* cdba_handle;
 
 /*! \brief open new database connection
  * \param  dblib                 database library handle
- * \param  path                  path to SQLite3 database file
+ * \param  configtext            database settings (key=value pairs separated by spaces or semicolons, double quotes are supported and backslash can be used inside double quotes to escape characters)
  * \return database handle on success or NULL on error
  * \sa     cdba_close()
  * \sa     cdba_set_error()
@@ -116,7 +116,7 @@ typedef struct cdba_handle_struct* cdba_handle;
  * \sa     cdba_rollback_transaction()
  * \sa     cdba_create_preparedstatement()
  */
-DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char* path);
+DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char* configtext);
 
 /*! \brief close database connection
  * \param  db                    database handle
@@ -146,6 +146,8 @@ DLL_EXPORT_CDBALIB const char* cdba_get_error (cdba_handle db);
  * \param  db                    database handle
  * \param  sql                   SQL statement
  * \return zero on success, non-zero on error
+ * \sa     cdba_sql_with_length()
+ * \sa     cdba_multiple_sql()
  * \sa     cdba_open()
  * \sa     cdba_close()
  * \sa     cdba_get_error()
@@ -154,8 +156,23 @@ DLL_EXPORT_CDBALIB int cdba_sql (cdba_handle db, const char* sql);
 
 /*! \brief execute a database SQL statement
  * \param  db                    database handle
+ * \param  sql                   SQL statement
+ * \param  sqllen                length of SQL statement
+ * \return zero on success, non-zero on error
+ * \sa     cdba_sql()
+ * \sa     cdba_multiple_sql()
+ * \sa     cdba_open()
+ * \sa     cdba_close()
+ * \sa     cdba_get_error()
+ */
+DLL_EXPORT_CDBALIB int cdba_sql_with_length (cdba_handle db, const char* sql, size_t sqllen);
+
+/*! \brief execute a database SQL statement
+ * \param  db                    database handle
  * \param  sql                   SQL statements (can be multiple separated by semicolon)
  * \return zero on success, non-zero on error
+ * \sa     cdba_sql()
+ * \sa     cdba_sql_with_length()
  * \sa     cdba_open()
  * \sa     cdba_close()
  * \sa     cdba_get_error()
@@ -400,9 +417,9 @@ DLL_EXPORT_CDBALIB void cdba_free (void* data);
 /*! \brief major version number */
 #define CDBALIB_VERSION_MAJOR 0
 /*! \brief minor version number */
-#define CDBALIB_VERSION_MINOR 1
+#define CDBALIB_VERSION_MINOR 2
 /*! \brief micro version number */
-#define CDBALIB_VERSION_MICRO 3
+#define CDBALIB_VERSION_MICRO 0
 /*! @} */
 
 /*! \brief packed version number */
