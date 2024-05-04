@@ -172,7 +172,7 @@ struct cdba_config_struct {
 #elif defined(DB_SQLITE3)
   char* file;
 #elif defined(DB_ODBC)
-  /////TO DO
+  char* dsn;
 #else
 #endif
 };
@@ -187,7 +187,7 @@ struct cdba_config_settings_mapping_struct cdba_config_mapping[] = {
 #elif defined(DB_SQLITE3)
   {"file",     offsetof(struct cdba_config_struct, file),     cfg_txt},
 #elif defined(DB_ODBC)
-  /////TO DO
+  {"dsn",      offsetof(struct cdba_config_struct, dsn),      cfg_txt},
 #else
 #endif
   {NULL, 0, 0}
@@ -209,7 +209,7 @@ cdba_config cdba_config_initialize ()
 #elif defined(DB_SQLITE3)
   cfg->file = NULL;
 #elif defined(DB_ODBC)
-  /////TO DO
+  cfg->dsn = NULL;
 #else
 #endif
   return cfg;
@@ -239,7 +239,7 @@ DLL_EXPORT_CDBALIB void cdba_config_cleanup (cdba_config cfg)
 #elif defined(DB_SQLITE3)
   free(cfg->file);
 #elif defined(DB_ODBC)
-  /////TO DO
+  free(cfg->dsn);
 #else
 #endif
 }
@@ -367,8 +367,7 @@ DLL_EXPORT_CDBALIB cdba_handle cdba_open (cdba_library_handle dblib, const char*
     return NULL;
   }
 /*/
-  path = "cdbalib_test_msaccess";/////
-  if (SQLConnectA(db->odbc_conn, (SQLCHAR*)path, SQL_NTS, NULL, 0, NULL, 0) == SQL_ERROR) {
+  if (SQLConnectA(db->odbc_conn, (SQLCHAR*)cfg->dsn, SQL_NTS, NULL, 0, NULL, 0) == SQL_ERROR) {
     free(db);
     return NULL;
   }

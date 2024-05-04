@@ -20,7 +20,7 @@ BINEXT =
 SOLIBPREFIX = lib
 SOEXT = .so
 endif
-INCS = -Iinclude
+INCS = -Iinclude -Isrc
 CFLAGS = $(INCS) -Os
 CPPFLAGS = $(INCS) -Os
 STATIC_CFLAGS = -DSTATIC_CDBALIB
@@ -75,7 +75,7 @@ ODBC_LIBS =
 endif
 
 COMMON_PACKAGE_FILES = README.md LICENSE Changelog.txt
-SOURCE_PACKAGE_FILES = $(COMMON_PACKAGE_FILES) Makefile doc/Doxyfile include/*.h src/*.c build/*.workspace build/*.cbp build/*.depend
+SOURCE_PACKAGE_FILES = $(COMMON_PACKAGE_FILES) Makefile doc/Doxyfile include/*.h src/*.c src/*.h build/*.workspace build/*.cbp build/*.depend
 
 
 
@@ -91,47 +91,53 @@ static-libs: $(BINDIR)libcdba-sqlite3$(LIBEXT) $(BINDIR)libcdba-mysql$(LIBEXT) $
 shared-libs: $(BINDIR)libcdba-sqlite3$(SOEXT) $(BINDIR)libcdba-mysql$(SOEXT) $(BINDIR)libcdba-odbc$(SOEXT)
 
 
-$(OBJDIR)libcdba-sqlite3-static.o: src/cdbalib.c
-	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(SQLITE3_CFLAGS) $(CFLAGS)
+$(OBJDIR)cdbaconfig-static.o: src/cdbaconfig.c
+	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(CFLAGS)
 
-$(BINDIR)libcdba-sqlite3$(LIBEXT): $(OBJDIR)libcdba-sqlite3-static.o
+$(OBJDIR)cdbaconfig-shared.o: src/cdbaconfig.c
+	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(CFLAGS)
+
+$(OBJDIR)libcdba-sqlite3-static.o: src/cdbalib.c
+	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(CFLAGS) $(SQLITE3_CFLAGS)
+
+$(BINDIR)libcdba-sqlite3$(LIBEXT): $(OBJDIR)libcdba-sqlite3-static.o $(OBJDIR)cdbaconfig-static.o
 	$(AR) cr $@ $^
 
 $(OBJDIR)libcdba-sqlite3-shared.o: src/cdbalib.c
-	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(SQLITE3_CFLAGS) $(CFLAGS)
+	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(CFLAGS) $(SQLITE3_CFLAGS)
 
-$(BINDIR)libcdba-sqlite3$(SOEXT): $(OBJDIR)libcdba-sqlite3-shared.o
+$(BINDIR)libcdba-sqlite3$(SOEXT): $(OBJDIR)libcdba-sqlite3-shared.o $(OBJDIR)cdbaconfig-shared.o
 	$(CC) -o $@ $(OS_LINK_FLAGS) $^ $(SHARED_LDFLAGS) $(LDFLAGS) $(SQLITE3_LIBS) $(LIBS)
 
 
 $(OBJDIR)libcdba-mysql-static.o: src/cdbalib.c
-	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(MYSQL_CFLAGS) $(CFLAGS)
+	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(CFLAGS) $(MYSQL_CFLAGS)
 
-$(BINDIR)libcdba-mysql$(LIBEXT): $(OBJDIR)libcdba-mysql-static.o
+$(BINDIR)libcdba-mysql$(LIBEXT): $(OBJDIR)libcdba-mysql-static.o $(OBJDIR)cdbaconfig-static.o
 	$(AR) cr $@ $^
 
 $(OBJDIR)libcdba-mysql-shared.o: src/cdbalib.c
-	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(MYSQL_CFLAGS) $(CFLAGS)
+	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(CFLAGS) $(MYSQL_CFLAGS)
 
-$(BINDIR)libcdba-mysql$(SOEXT): $(OBJDIR)libcdba-mysql-shared.o
+$(BINDIR)libcdba-mysql$(SOEXT): $(OBJDIR)libcdba-mysql-shared.o $(OBJDIR)cdbaconfig-shared.o
 	$(CC) -o $@ $(OS_LINK_FLAGS) $^ $(SHARED_LDFLAGS) $(LDFLAGS) $(MYSQL_LIBS) $(LIBS)
 
 
 $(OBJDIR)libcdba-odbc-static.o: src/cdbalib.c
-	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(ODBC_CFLAGS) $(CFLAGS)
+	$(CC) -c -o $@ $< $(STATIC_CFLAGS) $(CFLAGS) $(ODBC_CFLAGS)
 
-$(BINDIR)libcdba-odbc$(LIBEXT): $(OBJDIR)libcdba-odbc-static.o
+$(BINDIR)libcdba-odbc$(LIBEXT): $(OBJDIR)libcdba-odbc-static.o $(OBJDIR)cdbaconfig-static.o
 	$(AR) cr $@ $^
 
 $(OBJDIR)libcdba-odbc-shared.o: src/cdbalib.c
-	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(ODBC_CFLAGS) $(CFLAGS)
+	$(CC) -c -o $@ $< $(SHARED_CFLAGS) $(CFLAGS) $(ODBC_CFLAGS)
 
-$(BINDIR)libcdba-odbc$(SOEXT): $(OBJDIR)libcdba-odbc-shared.o
+$(BINDIR)libcdba-odbc$(SOEXT): $(OBJDIR)libcdba-odbc-shared.o $(OBJDIR)cdbaconfig-shared.o
 	$(CC) -o $@ $(OS_LINK_FLAGS) $^ $(SHARED_LDFLAGS) $(LDFLAGS) $(ODBC_LIBS) $(LIBS)
 
 
 .PHONY: pkg-config-files
-pkg-config-files: cdbalib-sqlite3.pc cdbalib-mysql.pc cdbalib-odbc.pc
+pkg-config-files: $(OBJDIR)cdbalib-sqlite3.pc $(OBJDIR)cdbalib-mysql.pc $(OBJDIR)cdbalib-odbc.pc
 
 
 define CDBALIB_SQLITE3_PC
